@@ -639,14 +639,14 @@ export class MemStorage implements IStorage {
     if (!file) return undefined;
     
     try {
-      // Import the vector utilities dynamically to avoid circular dependencies
-      const { generateEmbedding } = await import('./utils/vectorUtils');
+      // Import the HuggingFace vector utilities
+      const { generateHfEmbedding } = await import('./utils/huggingfaceUtils');
       
       // Generate content summary from file metadata and name
       const contentSummary = this.generateContentSummary(file);
       
-      // Generate vector embedding for the content summary
-      const contentVector = await generateEmbedding(contentSummary);
+      // Generate vector embedding for the content summary using HuggingFace
+      const contentVector = await generateHfEmbedding(contentSummary);
       
       if (!contentVector) {
         console.warn(`Failed to generate vector embedding for file ID ${fileId}`);
@@ -715,11 +715,11 @@ export class MemStorage implements IStorage {
     threshold: number = 0.7
   ): Promise<File[]> {
     try {
-      // Import the vector utilities dynamically to avoid circular dependencies
-      const { generateQueryVector, cosineSimilarity } = await import('./utils/vectorUtils');
+      // Import the HuggingFace utilities
+      const { generateHfEmbedding, cosineSimilarity } = await import('./utils/huggingfaceUtils');
       
-      // Generate vector embedding for the query
-      const queryVector = await generateQueryVector(query);
+      // Generate vector embedding for the query using HuggingFace
+      const queryVector = await generateHfEmbedding(query);
       
       if (!queryVector) {
         console.warn(`Failed to generate vector embedding for query: ${query}`);
@@ -773,8 +773,8 @@ export class MemStorage implements IStorage {
     threshold: number = 0.7
   ): Promise<File[]> {
     try {
-      // Import the vector utilities dynamically to avoid circular dependencies
-      const { cosineSimilarity } = await import('./utils/vectorUtils');
+      // Import the HuggingFace utilities
+      const { cosineSimilarity } = await import('./utils/huggingfaceUtils');
       
       // Get the source file
       const sourceFile = await this.getFile(fileId);
