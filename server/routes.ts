@@ -504,6 +504,174 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(result);
   });
 
+  // Vector search endpoints
+  
+  // Process a file for vector search (generate embeddings)
+  app.post("/api/files/:id/process-vector", async (req: Request, res: Response) => {
+    const fileId = parseInt(req.params.id);
+    
+    if (isNaN(fileId)) {
+      return res.status(400).json({ message: "Invalid file ID" });
+    }
+    
+    try {
+      // Get the user
+      const user = await activeStorage.getUserByUsername("pinky");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Get the file to verify it belongs to the user
+      const file = await activeStorage.getFile(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      if (file.userId !== user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Process the file for vector search
+      const processedFile = await activeStorage.processFileForVectorSearch(fileId);
+      
+      if (!processedFile) {
+        return res.status(500).json({ message: "Failed to process file" });
+      }
+      
+      return res.json({ 
+        success: true, 
+        file: processedFile,
+        message: "File processed successfully"
+      });
+    } catch (error: any) {
+      console.error("Error processing file for vector search:", error);
+      return res.status(500).json({ message: error.message || "Failed to process file" });
+    }
+  });
+  
+  // Process all unprocessed files for a user to add vector embeddings
+  app.post("/api/files/process-all-vectors", async (req: Request, res: Response) => {
+    try {
+      // Get the user
+      const user = await activeStorage.getUserByUsername("pinky");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Process all unprocessed files
+      const processedCount = await activeStorage.processAllUserFilesForVectorSearch(user.id);
+      
+      return res.json({ 
+        success: true, 
+        processedCount,
+        message: `${processedCount} files processed successfully`
+      });
+    } catch (error: any) {
+      console.error("Error processing files for vector search:", error);
+      return res.status(500).json({ message: error.message || "Failed to process files" });
+    }
+  });
+  
+  // Search files using semantic vector search
+  app.get("/api/files/vector-search", async (req: Request, res: Response) => {
+    const query = req.query.query as string;
+    const limitParam = req.query.limit as string;
+    const thresholdParam = req.query.threshold as string;
+    
+    if (!query || typeof query !== 'string') {
+      return res.status(400).json({ message: "Search query is required" });
+    }
+    
+    const limit = limitParam ? parseInt(limitParam) : 10;
+    const threshold = thresholdParam ? parseFloat(thresholdParam) : 0.7;
+    
+    if (isNaN(limit) || isNaN(threshold)) {
+      return res.status(400).json({ message: "Invalid limit or threshold" });
+    }
+    
+    try {
+      // Get the user
+      const user = await activeStorage.getUserByUsername("pinky");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Check if we need to install OpenAI
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(400).json({ message: "OpenAI API key is required for vector search" });
+      }
+      
+      // Perform vector search
+      const results = await activeStorage.searchFilesByVector(user.id, query, limit, threshold);
+      
+      return res.json({ 
+        success: true, 
+        results,
+        count: results.length,
+        query
+      });
+    } catch (error: any) {
+      console.error("Error searching files by vector:", error);
+      return res.status(500).json({ message: error.message || "Failed to search files" });
+    }
+  });
+  
+  // Find files similar to a specific file
+  app.get("/api/files/:id/similar", async (req: Request, res: Response) => {
+    const fileId = parseInt(req.params.id);
+    const limitParam = req.query.limit as string;
+    const thresholdParam = req.query.threshold as string;
+    
+    if (isNaN(fileId)) {
+      return res.status(400).json({ message: "Invalid file ID" });
+    }
+    
+    const limit = limitParam ? parseInt(limitParam) : 5;
+    const threshold = thresholdParam ? parseFloat(thresholdParam) : 0.7;
+    
+    if (isNaN(limit) || isNaN(threshold)) {
+      return res.status(400).json({ message: "Invalid limit or threshold" });
+    }
+    
+    try {
+      // Get the user
+      const user = await activeStorage.getUserByUsername("pinky");
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Get the file to verify it belongs to the user
+      const file = await activeStorage.getFile(fileId);
+      
+      if (!file) {
+        return res.status(404).json({ message: "File not found" });
+      }
+      
+      if (file.userId !== user.id) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+      
+      // Check if we need to install OpenAI
+      if (!process.env.OPENAI_API_KEY) {
+        return res.status(400).json({ message: "OpenAI API key is required for vector search" });
+      }
+      
+      // Find similar files
+      const similarFiles = await activeStorage.findSimilarFiles(fileId, limit, threshold);
+      
+      return res.json({ 
+        success: true, 
+        results: similarFiles,
+        count: similarFiles.length,
+        sourceFile: file.name
+      });
+    } catch (error: any) {
+      console.error("Error finding similar files:", error);
+      return res.status(500).json({ message: error.message || "Failed to find similar files" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

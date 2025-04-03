@@ -31,6 +31,8 @@ export const files = pgTable("files", {
   userId: integer("user_id").notNull(),
   metadata: jsonb("metadata"),
   isProcessed: boolean("is_processed").default(false),
+  contentSummary: text("content_summary"),
+  contentVector: jsonb("content_vector"), // Store vector embeddings as JSON
 });
 
 export const insertFileSchema = createInsertSchema(files).omit({

@@ -63,6 +63,12 @@ export interface IStorage {
   
   // Conflict resolution
   resolveFileConflicts(userId: number, fileIds: number[]): Promise<{ resolved: number; failed: number }>;
+  
+  // Vector search methods
+  processFileForVectorSearch(fileId: number): Promise<File | undefined>;
+  processAllUserFilesForVectorSearch(userId: number): Promise<number>;
+  searchFilesByVector(userId: number, query: string, limit?: number, threshold?: number): Promise<File[]>;
+  findSimilarFiles(fileId: number, limit?: number, threshold?: number): Promise<File[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -167,7 +173,9 @@ export class MemStorage implements IStorage {
       fileCategory: insertFile.fileCategory ?? null,
       sourceId: insertFile.sourceId ?? null,
       metadata: insertFile.metadata ?? null,
-      isProcessed: insertFile.isProcessed ?? null
+      isProcessed: insertFile.isProcessed ?? null,
+      contentSummary: insertFile.contentSummary ?? null,
+      contentVector: insertFile.contentVector ?? null
     };
     this.files.set(id, file);
     return file;
@@ -617,6 +625,257 @@ export class MemStorage implements IStorage {
     }
 
     return { resolved, failed };
+  }
+
+  // Vector search methods
+  
+  /**
+   * Process a file to add AI-generated vector embeddings and content summary
+   * @param fileId ID of the file to process
+   * @returns The updated file with vector embeddings, or undefined if not found or error
+   */
+  async processFileForVectorSearch(fileId: number): Promise<File | undefined> {
+    const file = await this.getFile(fileId);
+    if (!file) return undefined;
+    
+    try {
+      // Import the vector utilities dynamically to avoid circular dependencies
+      const { generateEmbedding } = await import('./utils/vectorUtils');
+      
+      // Generate content summary from file metadata and name
+      const contentSummary = this.generateContentSummary(file);
+      
+      // Generate vector embedding for the content summary
+      const contentVector = await generateEmbedding(contentSummary);
+      
+      if (!contentVector) {
+        console.warn(`Failed to generate vector embedding for file ID ${fileId}`);
+        return file;
+      }
+      
+      // Update the file with the content summary and vector
+      const updatedFile = await this.updateFile(fileId, {
+        metadata: {
+          ...file.metadata as Record<string, any>,
+          contentSummary,
+          contentVector
+        },
+        isProcessed: true
+      });
+      
+      return updatedFile;
+    } catch (error) {
+      console.error(`Error processing file ${fileId} for vector search:`, error);
+      return file;
+    }
+  }
+  
+  /**
+   * Process all unprocessed files for a user to add vector embeddings
+   * @param userId User ID to process files for
+   * @returns Count of successfully processed files
+   */
+  async processAllUserFilesForVectorSearch(userId: number): Promise<number> {
+    try {
+      // Get all files for the user that aren't processed yet
+      const files = Array.from(this.files.values()).filter(
+        file => file.userId === userId && !file.isProcessed
+      );
+      
+      let processedCount = 0;
+      
+      for (const file of files) {
+        try {
+          await this.processFileForVectorSearch(file.id);
+          processedCount++;
+        } catch (error) {
+          console.error(`Error processing file ${file.id}:`, error);
+        }
+      }
+      
+      return processedCount;
+    } catch (error) {
+      console.error(`Error processing files for vector search for user ${userId}:`, error);
+      return 0;
+    }
+  }
+  
+  /**
+   * Perform a semantic search across a user's files
+   * @param userId User ID to search files for
+   * @param query Search query text
+   * @param limit Maximum number of results to return
+   * @param threshold Minimum similarity score (0-1)
+   * @returns Array of files sorted by similarity to the query
+   */
+  async searchFilesByVector(
+    userId: number, 
+    query: string, 
+    limit: number = 10,
+    threshold: number = 0.7
+  ): Promise<File[]> {
+    try {
+      // Import the vector utilities dynamically to avoid circular dependencies
+      const { generateQueryVector, cosineSimilarity } = await import('./utils/vectorUtils');
+      
+      // Generate vector embedding for the query
+      const queryVector = await generateQueryVector(query);
+      
+      if (!queryVector) {
+        console.warn(`Failed to generate vector embedding for query: ${query}`);
+        return [];
+      }
+      
+      // Get all processed files for the user
+      const files = Array.from(this.files.values()).filter(
+        file => file.userId === userId && file.isProcessed === true
+      );
+      
+      // Filter files that have content vectors
+      const filesWithVectors = files.filter(file => {
+        const metadata = file.metadata || {};
+        return metadata && typeof metadata === 'object' && 
+               'contentVector' in metadata && 
+               Array.isArray((metadata as any).contentVector);
+      });
+      
+      // Calculate similarity scores for each file
+      const scoredFiles = filesWithVectors.map(file => {
+        const metadata = file.metadata as Record<string, any> || {};
+        const contentVector = metadata.contentVector;
+        
+        const similarity = cosineSimilarity(queryVector, contentVector);
+        return { file, similarity };
+      });
+      
+      // Filter by threshold and sort by similarity (highest first)
+      return scoredFiles
+        .filter(item => item.similarity >= threshold)
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit)
+        .map(item => item.file);
+    } catch (error) {
+      console.error(`Error searching files by vector for user ${userId}:`, error);
+      return [];
+    }
+  }
+  
+  /**
+   * Find files similar to a specific file
+   * @param fileId ID of the file to find similar files for
+   * @param limit Maximum number of results to return
+   * @param threshold Minimum similarity score (0-1)
+   * @returns Array of files sorted by similarity
+   */
+  async findSimilarFiles(
+    fileId: number,
+    limit: number = 5,
+    threshold: number = 0.7
+  ): Promise<File[]> {
+    try {
+      // Import the vector utilities dynamically to avoid circular dependencies
+      const { cosineSimilarity } = await import('./utils/vectorUtils');
+      
+      // Get the source file
+      const sourceFile = await this.getFile(fileId);
+      if (!sourceFile) return [];
+      
+      const metadata = sourceFile.metadata as Record<string, any> || {};
+      
+      // Check if the source file has a content vector
+      if (!metadata.contentVector || !Array.isArray(metadata.contentVector)) {
+        // Process the file if it doesn't have a vector
+        const processedFile = await this.processFileForVectorSearch(fileId);
+        if (!processedFile) return [];
+        
+        const updatedMetadata = processedFile.metadata as Record<string, any> || {};
+        if (!updatedMetadata.contentVector) return [];
+      }
+      
+      // Get the source vector
+      const sourceMetadata = (await this.getFile(fileId))?.metadata as Record<string, any> || {};
+      const sourceVector = sourceMetadata.contentVector;
+      
+      if (!sourceVector || !Array.isArray(sourceVector)) {
+        return [];
+      }
+      
+      // Get all processed files for the same user
+      const files = Array.from(this.files.values()).filter(
+        file => file.userId === sourceFile.userId && 
+                file.isProcessed === true && 
+                file.id !== fileId // Exclude the source file
+      );
+      
+      // Filter files that have content vectors
+      const filesWithVectors = files.filter(file => {
+        const fileMetadata = file.metadata as Record<string, any> || {};
+        return fileMetadata && 'contentVector' in fileMetadata && 
+               Array.isArray(fileMetadata.contentVector);
+      });
+      
+      // Calculate similarity scores for each file
+      const scoredFiles = filesWithVectors.map(file => {
+        const fileMetadata = file.metadata as Record<string, any> || {};
+        const contentVector = fileMetadata.contentVector;
+        
+        const similarity = cosineSimilarity(sourceVector, contentVector);
+        return { file, similarity };
+      });
+      
+      // Filter by threshold and sort by similarity (highest first)
+      return scoredFiles
+        .filter(item => item.similarity >= threshold)
+        .sort((a, b) => b.similarity - a.similarity)
+        .slice(0, limit)
+        .map(item => item.file);
+    } catch (error) {
+      console.error(`Error finding similar files for file ${fileId}:`, error);
+      return [];
+    }
+  }
+  
+  /**
+   * Generate a content summary for a file based on its metadata
+   * @param file The file to generate a summary for
+   * @returns A text summary of the file
+   */
+  private generateContentSummary(file: File): string {
+    // Extract filename and extension
+    const fileName = file.name || '';
+    const fileExtension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() : '';
+    
+    // Get category as a string
+    const category = file.fileCategory || 'unknown';
+    
+    // Extract any metadata
+    const metadata = file.metadata || {};
+    
+    // Create a summary string
+    let summary = `File: ${fileName}\n`;
+    summary += `Category: ${category}\n`;
+    summary += `Type: ${file.fileType || fileExtension || 'unknown'}\n`;
+    summary += `Source: ${file.source}\n`;
+    
+    // Add path information if available
+    if (file.path) {
+      summary += `Path: ${file.path}\n`;
+    }
+    
+    // Add metadata fields if available (excluding vector data)
+    if (metadata && typeof metadata === 'object') {
+      summary += 'Metadata:\n';
+      for (const [key, value] of Object.entries(metadata as Record<string, any>)) {
+        // Skip vector data and internal fields
+        if (key === 'contentVector' || key === 'contentSummary') continue;
+        
+        if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+          summary += `- ${key}: ${value}\n`;
+        }
+      }
+    }
+    
+    return summary;
   }
 }
 
