@@ -8,6 +8,8 @@ import { insertFileSchema, insertIntegrationSchema, insertRecommendationSchema, 
 import { analyzeAndCategorizeFile } from "./utils/aiUtils";
 import { scanLocalFiles, scanGoogleDriveFiles } from "./utils/fileUtils";
 import { zodResolver } from "@hookform/resolvers/zod";
+import filesRouter from "./routes/files";
+import oauthRouter from "./routes/oauth";
 
 // Set up storage with fallback to in-memory when Astra DB connection fails
 let activeStorage: IStorage = storage; // Default to in-memory storage
@@ -43,6 +45,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await useAstraDB();
   
   // API routes, all prefixed with /api
+  
+  // Mount modular route handlers
+  app.use('/api/files', filesRouter);
+  app.use('/api/oauth', oauthRouter);
   
   // Create user endpoint
   app.post("/api/user", async (req: Request, res: Response) => {
