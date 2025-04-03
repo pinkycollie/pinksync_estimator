@@ -65,7 +65,8 @@ export const useAstraDB = async () => {
       await storage.createUser({
         username: "pinky",
         displayName: "Pinky",
-        email: "user@example.com"
+        email: "user@example.com",
+        password: "password123" // Required field
       });
       console.log("Created default user in memory storage");
     }

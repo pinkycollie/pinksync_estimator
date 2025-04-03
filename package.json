@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@astrajs/collections": "^0.3.4",
+    "@datastax/astra-db-ts": "^1.5.0",
     "@hookform/resolvers": "^3.9.1",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@neondatabase/serverless": "^0.10.4",

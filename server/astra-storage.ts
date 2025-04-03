@@ -1,4 +1,4 @@
-import { createClient } from "@astrajs/collections";
+import { DataAPIClient, JsonObject } from "@datastax/astra-db-ts";
 import { 
   IStorage
 } from "./storage";
@@ -10,16 +10,10 @@ import {
 } from "@shared/schema";
 
 // Astra DB configuration
-// The Astra DB ID is the UUID part of your database URL
-// Example: https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com
-// becomes "2ba73933-3d26-47d9-a6f8-69b4f93a4611"
-const ASTRA_DB_ID = "2ba73933-3d26-47d9-a6f8-69b4f93a4611";
-const ASTRA_DB_REGION = "us-east-2";
-const ASTRA_DB_KEYSPACE = "pinky_os";
+// The Astra DB endpoint is the full URL to your database
+const ASTRA_DB_ENDPOINT = "https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com";
 const ASTRA_DB_TOKEN = process.env.ASTRA_DB_TOKEN || "";
-
-// Get the API endpoint from DB ID and region
-const ASTRA_DB_ENDPOINT = `https://${ASTRA_DB_ID}-${ASTRA_DB_REGION}.apps.astra.datastax.com`;
+const ASTRA_DB_NAMESPACE = "pinky_os"; // Namespace/keyspace name
 
 // Check token format
 if (ASTRA_DB_TOKEN && !ASTRA_DB_TOKEN.startsWith("AstraCS:")) {
