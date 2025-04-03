@@ -1,4 +1,4 @@
-import { DataAPIClient, JsonObject } from "@datastax/astra-db-ts";
+import { DataAPIClient, Collection } from "@datastax/astra-db-ts";
 import { 
   IStorage
 } from "./storage";
@@ -26,13 +26,15 @@ if (!ASTRA_DB_TOKEN) {
 }
 
 /**
- * Implementation of IStorage using Astra DB
+ * Implementation of IStorage using Astra DB with the new TypeScript SDK
  */
 export class AstraStorage implements IStorage {
-  private usersCollection: any;
-  private filesCollection: any;
-  private integrationsCollection: any;
-  private recommendationsCollection: any;
+  private client: DataAPIClient | null = null;
+  private db: any = null;
+  private usersCollection: Collection | null = null;
+  private filesCollection: Collection | null = null;
+  private integrationsCollection: Collection | null = null;
+  private recommendationsCollection: Collection | null = null;
   private isConnected: boolean = false;
   
   constructor() {
@@ -45,39 +47,73 @@ export class AstraStorage implements IStorage {
       if (!ASTRA_DB_TOKEN) {
         console.warn("ASTRA_DB_TOKEN not set, using in-memory storage instead");
         this.isConnected = false;
-        return; // Don't throw, just return to indicate not connected
+        return;
       }
 
       try {
-        // Updated configuration based on the latest documentation
-        // Following https://docs.datastax.com/en/astra-db-serverless/integrations/unstructured-io.html
-        const astraClient = await createClient({
-          astraDatabaseId: ASTRA_DB_ID,
-          astraDatabaseRegion: ASTRA_DB_REGION,
-          applicationToken: ASTRA_DB_TOKEN,
-        });
+        // Parse the endpoint to extract the DB ID and region
+        // Format: https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com
+        const urlParts = ASTRA_DB_ENDPOINT.split('.');
+        const dbIdWithRegion = urlParts[0].split('//')[1];
+        const [dbId, region] = dbIdWithRegion.split('-us-');
+        
+        console.log(`Connecting to Astra DB with ID: ${dbId} in region: us-${region}`);
+        
+        // Initialize client using the new TypeScript SDK
+        this.client = new DataAPIClient(ASTRA_DB_TOKEN);
+        
+        // Make sure to append /api/rest/v2 to the endpoint as required by the new SDK
+        if (!ASTRA_DB_ENDPOINT.includes('/api/rest')) {
+          // For new SDK, we need to add the specific API endpoint
+          const apiEndpoint = `${ASTRA_DB_ENDPOINT}/api/rest/v2`;
+          console.log(`Using API endpoint: ${apiEndpoint}`);
+          this.db = this.client.db(apiEndpoint);
+        } else {
+          this.db = this.client.db(ASTRA_DB_ENDPOINT);
+        }
         
         console.log("Astra client created successfully");
+
+        // First create the namespace/keyspace if it doesn't exist
+        try {
+          await this.db.createNamespace(ASTRA_DB_NAMESPACE);
+          console.log(`Created namespace: ${ASTRA_DB_NAMESPACE}`);
+        } catch (nsError) {
+          console.log(`Namespace ${ASTRA_DB_NAMESPACE} may already exist: ${nsError.message}`);
+        }
+
+        // Create or get collections
+        this.usersCollection = this.db.collection(ASTRA_DB_NAMESPACE, "users");
+        this.filesCollection = this.db.collection(ASTRA_DB_NAMESPACE, "files");
+        this.integrationsCollection = this.db.collection(ASTRA_DB_NAMESPACE, "integrations");
+        this.recommendationsCollection = this.db.collection(ASTRA_DB_NAMESPACE, "recommendations");
         
-        // Create document collections for each data type
-        this.usersCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("users");
-        this.filesCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("files");
-        this.integrationsCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("integrations");
-        this.recommendationsCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("recommendations");
-        
-        // Check if collections are working by attempting a simple query
-        await this.usersCollection.find({}, { limit: 1 });
-        console.log("Connected to Astra DB successfully");
-        this.isConnected = true;
+        // Try a simple test operation to verify connection
+        try {
+          // Try creating indexes to verify connection
+          await this.usersCollection.createIndex({ fields: [{ name: "id" }] });
+          await this.filesCollection.createIndex({ fields: [{ name: "userId" }] });
+          console.log("Successfully created indexes - connection verified");
+          this.isConnected = true;
+        } catch (indexError) {
+          console.log("Index creation attempted, may already exist:", indexError.message);
+          // Let's try a different operation to test connection
+          try {
+            const simpleTest = await this.usersCollection.findOne({ id: 1 });
+            console.log("Connection test successful");
+            this.isConnected = true;
+          } catch (findError) {
+            console.error("Failed to verify connection:", findError);
+            this.isConnected = false;
+          }
+        }
       } catch (connectionError) {
         console.error("Failed to connect to Astra DB:", connectionError);
         this.isConnected = false;
-        // Don't throw, just set isConnected to false
       }
     } catch (error) {
       console.error("Error in initializeCollections:", error);
       this.isConnected = false;
-      // Don't throw, just set isConnected to false
     }
   }
 
@@ -90,9 +126,11 @@ export class AstraStorage implements IStorage {
   // User methods
   async getUser(id: number): Promise<User | undefined> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.usersCollection) return undefined;
+    
     try {
       const response = await this.usersCollection.findOne({ id });
-      return response ? response as User : undefined;
+      return response as User || undefined;
     } catch (error) {
       console.error("Error getting user:", error);
       return undefined;
@@ -103,13 +141,12 @@ export class AstraStorage implements IStorage {
     await this.ensureConnected();
     try {
       // Handle the case where Astra DB might have connectivity issues
-      // but we want the system to continue operating with memory storage
       if (!this.isConnected || !this.usersCollection) {
         throw new Error("Not connected to Astra DB");
       }
       
       const response = await this.usersCollection.find({ username }, { limit: 1 });
-      return response.data.length > 0 ? response.data[0] as User : undefined;
+      return response.length > 0 ? response[0] as User : undefined;
     } catch (error) {
       console.error("Error getting user by username:", error);
       // Throw to trigger the fallback to memory storage in the useAstraDB function
@@ -122,11 +159,15 @@ export class AstraStorage implements IStorage {
 
   async createUser(user: InsertUser): Promise<User> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.usersCollection) {
+      throw new Error("Not connected to Astra DB");
+    }
+    
     try {
-      // Get the next ID
+      // Get all users to determine next ID
       const allUsers = await this.usersCollection.find({});
-      const id = allUsers.data.length > 0 
-        ? Math.max(...allUsers.data.map((u: User) => u.id)) + 1
+      const id = allUsers.length > 0 
+        ? Math.max(...allUsers.map((u: User) => u.id)) + 1
         : 1;
       
       const newUser: User = { 
@@ -135,7 +176,9 @@ export class AstraStorage implements IStorage {
         email: user.email || null,
         displayName: user.displayName || null 
       };
-      await this.usersCollection.create(newUser.id.toString(), newUser);
+      
+      // Insert the user document with the ID as document ID
+      await this.usersCollection.insertOne({ _id: id.toString(), ...newUser });
       return newUser;
     } catch (error) {
       console.error("Error creating user:", error);
@@ -146,9 +189,11 @@ export class AstraStorage implements IStorage {
   // File methods
   async getFiles(userId: number): Promise<File[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) return [];
+    
     try {
       const response = await this.filesCollection.find({ userId });
-      return response.data as File[];
+      return response as File[];
     } catch (error) {
       console.error("Error getting files:", error);
       return [];
@@ -157,9 +202,11 @@ export class AstraStorage implements IStorage {
 
   async getFilesByCategory(userId: number, category: string): Promise<File[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) return [];
+    
     try {
       const response = await this.filesCollection.find({ userId, category });
-      return response.data as File[];
+      return response as File[];
     } catch (error) {
       console.error("Error getting files by category:", error);
       return [];
@@ -168,9 +215,11 @@ export class AstraStorage implements IStorage {
 
   async getFilesBySource(userId: number, source: string): Promise<File[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) return [];
+    
     try {
       const response = await this.filesCollection.find({ userId, source });
-      return response.data as File[];
+      return response as File[];
     } catch (error) {
       console.error("Error getting files by source:", error);
       return [];
@@ -179,10 +228,12 @@ export class AstraStorage implements IStorage {
 
   async getRecentFiles(userId: number, limit: number = 10): Promise<File[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) return [];
+    
     try {
       const response = await this.filesCollection.find({ userId }, { limit });
       // Sort by lastModified desc
-      return response.data
+      return response
         .sort((a: File, b: File) => 
           new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
         )
@@ -195,9 +246,11 @@ export class AstraStorage implements IStorage {
 
   async getFile(id: number): Promise<File | undefined> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) return undefined;
+    
     try {
       const response = await this.filesCollection.findOne({ id });
-      return response ? response as File : undefined;
+      return response as File || undefined;
     } catch (error) {
       console.error("Error getting file:", error);
       return undefined;
@@ -206,11 +259,15 @@ export class AstraStorage implements IStorage {
 
   async createFile(file: InsertFile): Promise<File> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) {
+      throw new Error("Not connected to Astra DB");
+    }
+    
     try {
-      // Get the next ID
+      // Get all files to determine next ID
       const allFiles = await this.filesCollection.find({});
-      const id = allFiles.data.length > 0 
-        ? Math.max(...allFiles.data.map((f: File) => f.id)) + 1
+      const id = allFiles.length > 0 
+        ? Math.max(...allFiles.map((f: File) => f.id)) + 1
         : 1;
       
       const newFile: File = { 
@@ -223,7 +280,8 @@ export class AstraStorage implements IStorage {
         metadata: file.metadata || null,
         isProcessed: file.isProcessed || null
       };
-      await this.filesCollection.create(newFile.id.toString(), newFile);
+      
+      await this.filesCollection.insertOne({ _id: id.toString(), ...newFile });
       return newFile;
     } catch (error) {
       console.error("Error creating file:", error);
@@ -233,12 +291,14 @@ export class AstraStorage implements IStorage {
 
   async updateFile(id: number, fileUpdate: Partial<InsertFile>): Promise<File | undefined> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) return undefined;
+    
     try {
       const existingFile = await this.getFile(id);
       if (!existingFile) return undefined;
       
       const updatedFile = { ...existingFile, ...fileUpdate };
-      await this.filesCollection.update(id.toString(), updatedFile);
+      await this.filesCollection.updateOne({ id }, { $set: fileUpdate });
       return updatedFile;
     } catch (error) {
       console.error("Error updating file:", error);
@@ -248,8 +308,10 @@ export class AstraStorage implements IStorage {
 
   async deleteFile(id: number): Promise<boolean> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) return false;
+    
     try {
-      await this.filesCollection.delete(id.toString());
+      await this.filesCollection.deleteOne({ id });
       return true;
     } catch (error) {
       console.error("Error deleting file:", error);
@@ -260,9 +322,11 @@ export class AstraStorage implements IStorage {
   // Integration methods
   async getIntegrations(userId: number): Promise<Integration[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.integrationsCollection) return [];
+    
     try {
       const response = await this.integrationsCollection.find({ userId });
-      return response.data as Integration[];
+      return response as Integration[];
     } catch (error) {
       console.error("Error getting integrations:", error);
       return [];
@@ -271,9 +335,11 @@ export class AstraStorage implements IStorage {
 
   async getIntegration(id: number): Promise<Integration | undefined> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.integrationsCollection) return undefined;
+    
     try {
       const response = await this.integrationsCollection.findOne({ id });
-      return response ? response as Integration : undefined;
+      return response as Integration || undefined;
     } catch (error) {
       console.error("Error getting integration:", error);
       return undefined;
@@ -282,9 +348,11 @@ export class AstraStorage implements IStorage {
 
   async getIntegrationByType(userId: number, type: string): Promise<Integration | undefined> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.integrationsCollection) return undefined;
+    
     try {
       const response = await this.integrationsCollection.find({ userId, type }, { limit: 1 });
-      return response.data.length > 0 ? response.data[0] as Integration : undefined;
+      return response.length > 0 ? response[0] as Integration : undefined;
     } catch (error) {
       console.error("Error getting integration by type:", error);
       return undefined;
@@ -293,11 +361,15 @@ export class AstraStorage implements IStorage {
 
   async createIntegration(integration: InsertIntegration): Promise<Integration> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.integrationsCollection) {
+      throw new Error("Not connected to Astra DB");
+    }
+    
     try {
-      // Get the next ID
+      // Get all integrations to determine next ID
       const allIntegrations = await this.integrationsCollection.find({});
-      const id = allIntegrations.data.length > 0 
-        ? Math.max(...allIntegrations.data.map((i: Integration) => i.id)) + 1
+      const id = allIntegrations.length > 0 
+        ? Math.max(...allIntegrations.map((i: Integration) => i.id)) + 1
         : 1;
       
       const newIntegration: Integration = { 
@@ -307,7 +379,8 @@ export class AstraStorage implements IStorage {
         config: integration.config || null,
         lastSynced: integration.lastSynced || null
       };
-      await this.integrationsCollection.create(newIntegration.id.toString(), newIntegration);
+      
+      await this.integrationsCollection.insertOne({ _id: id.toString(), ...newIntegration });
       return newIntegration;
     } catch (error) {
       console.error("Error creating integration:", error);
@@ -317,12 +390,14 @@ export class AstraStorage implements IStorage {
 
   async updateIntegration(id: number, integrationUpdate: Partial<InsertIntegration>): Promise<Integration | undefined> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.integrationsCollection) return undefined;
+    
     try {
       const existingIntegration = await this.getIntegration(id);
       if (!existingIntegration) return undefined;
       
       const updatedIntegration = { ...existingIntegration, ...integrationUpdate };
-      await this.integrationsCollection.update(id.toString(), updatedIntegration);
+      await this.integrationsCollection.updateOne({ id }, { $set: integrationUpdate });
       return updatedIntegration;
     } catch (error) {
       console.error("Error updating integration:", error);
@@ -332,8 +407,10 @@ export class AstraStorage implements IStorage {
 
   async deleteIntegration(id: number): Promise<boolean> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.integrationsCollection) return false;
+    
     try {
-      await this.integrationsCollection.delete(id.toString());
+      await this.integrationsCollection.deleteOne({ id });
       return true;
     } catch (error) {
       console.error("Error deleting integration:", error);
@@ -344,9 +421,11 @@ export class AstraStorage implements IStorage {
   // Recommendation methods
   async getRecommendations(userId: number): Promise<Recommendation[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.recommendationsCollection) return [];
+    
     try {
       const response = await this.recommendationsCollection.find({ userId });
-      return response.data as Recommendation[];
+      return response as Recommendation[];
     } catch (error) {
       console.error("Error getting recommendations:", error);
       return [];
@@ -355,10 +434,12 @@ export class AstraStorage implements IStorage {
 
   async getActiveRecommendations(userId: number): Promise<Recommendation[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.recommendationsCollection) return [];
+    
     try {
       // Get all recommendations for the user and filter by isDismissed
       const response = await this.recommendationsCollection.find({ userId });
-      return response.data.filter((rec: Recommendation) => !rec.isDismissed) as Recommendation[];
+      return response.filter((rec: Recommendation) => !rec.isDismissed) as Recommendation[];
     } catch (error) {
       console.error("Error getting active recommendations:", error);
       return [];
@@ -367,9 +448,11 @@ export class AstraStorage implements IStorage {
 
   async getRecommendation(id: number): Promise<Recommendation | undefined> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.recommendationsCollection) return undefined;
+    
     try {
       const response = await this.recommendationsCollection.findOne({ id });
-      return response ? response as Recommendation : undefined;
+      return response as Recommendation || undefined;
     } catch (error) {
       console.error("Error getting recommendation:", error);
       return undefined;
@@ -378,11 +461,15 @@ export class AstraStorage implements IStorage {
 
   async createRecommendation(recommendation: InsertRecommendation): Promise<Recommendation> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.recommendationsCollection) {
+      throw new Error("Not connected to Astra DB");
+    }
+    
     try {
-      // Get the next ID
+      // Get all recommendations to determine next ID
       const allRecommendations = await this.recommendationsCollection.find({});
-      const id = allRecommendations.data.length > 0 
-        ? Math.max(...allRecommendations.data.map((r: Recommendation) => r.id)) + 1
+      const id = allRecommendations.length > 0 
+        ? Math.max(...allRecommendations.map((r: Recommendation) => r.id)) + 1
         : 1;
       
       const newRecommendation: Recommendation = { 
@@ -391,7 +478,8 @@ export class AstraStorage implements IStorage {
         source: recommendation.source || null,
         isDismissed: recommendation.isDismissed || null
       };
-      await this.recommendationsCollection.create(newRecommendation.id.toString(), newRecommendation);
+      
+      await this.recommendationsCollection.insertOne({ _id: id.toString(), ...newRecommendation });
       return newRecommendation;
     } catch (error) {
       console.error("Error creating recommendation:", error);
@@ -401,12 +489,14 @@ export class AstraStorage implements IStorage {
 
   async updateRecommendation(id: number, recommendationUpdate: Partial<InsertRecommendation>): Promise<Recommendation | undefined> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.recommendationsCollection) return undefined;
+    
     try {
       const existingRecommendation = await this.getRecommendation(id);
       if (!existingRecommendation) return undefined;
       
       const updatedRecommendation = { ...existingRecommendation, ...recommendationUpdate };
-      await this.recommendationsCollection.update(id.toString(), updatedRecommendation);
+      await this.recommendationsCollection.updateOne({ id }, { $set: recommendationUpdate });
       return updatedRecommendation;
     } catch (error) {
       console.error("Error updating recommendation:", error);
@@ -416,8 +506,10 @@ export class AstraStorage implements IStorage {
 
   async deleteRecommendation(id: number): Promise<boolean> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.recommendationsCollection) return false;
+    
     try {
-      await this.recommendationsCollection.delete(id.toString());
+      await this.recommendationsCollection.deleteOne({ id });
       return true;
     } catch (error) {
       console.error("Error deleting recommendation:", error);
@@ -428,6 +520,8 @@ export class AstraStorage implements IStorage {
   // Stats methods
   async getFileStats(userId: number): Promise<{ category: string; count: number }[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.filesCollection) return [];
+    
     try {
       const userFiles = await this.getFiles(userId);
       
@@ -446,6 +540,8 @@ export class AstraStorage implements IStorage {
 
   async getIntegrationStats(userId: number): Promise<{ type: string; count: number }[]> {
     await this.ensureConnected();
+    if (!this.isConnected || !this.integrationsCollection) return [];
+    
     try {
       const userIntegrations = await this.getIntegrations(userId);
       
