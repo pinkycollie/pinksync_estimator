@@ -94,13 +94,16 @@ export class AstraStorage implements IStorage {
         
         console.log("Astra client created successfully");
 
-        // Create or get collections - note that the keyspace should already exist
-        // For the new SDK, you don't specify the keyspace in the collection call
-        // It's already set at the database level
-        this.usersCollection = this.db.collection("users");
-        this.filesCollection = this.db.collection("files");
-        this.integrationsCollection = this.db.collection("integrations");
-        this.recommendationsCollection = this.db.collection("recommendations");
+        // Create or get collections - using the specified collection name
+        // As specified by the user, we need to use the "anynomous_mindmap" collection
+        // We'll use this as our main collection and segment data by type
+        const mainCollection = this.db.collection("anynomous_mindmap");
+        this.usersCollection = mainCollection;
+        this.filesCollection = mainCollection;
+        this.integrationsCollection = mainCollection;
+        this.recommendationsCollection = mainCollection;
+        
+        console.log("Using collection: anynomous_mindmap for all data types");
         
         console.log("Created collection references using KeySpace:", ASTRA_DB_KEYSPACE);
         
@@ -159,7 +162,8 @@ export class AstraStorage implements IStorage {
         throw new Error("Not connected to Astra DB");
       }
       
-      const response = await this.usersCollection.find({ username }, { limit: 1 });
+      // Add docType in the query criteria to only search for user documents
+      const response = await this.usersCollection.find({ username, docType: 'user' }, { limit: 1 });
       // Convert FindCursor to array for easier handling
       const results = await response.toArray();
       return results.length > 0 ? results[0] as unknown as User : undefined;
@@ -194,8 +198,12 @@ export class AstraStorage implements IStorage {
         displayName: user.displayName || null 
       };
       
-      // Insert the user document with the ID as document ID
-      await this.usersCollection.insertOne({ _id: id.toString(), ...newUser });
+      // Insert the user document with the ID as document ID and type marker
+      await this.usersCollection.insertOne({ 
+        _id: id.toString(), 
+        docType: 'user',
+        ...newUser 
+      });
       return newUser;
     } catch (error) {
       console.error("Error creating user:", error);
@@ -304,7 +312,11 @@ export class AstraStorage implements IStorage {
         isProcessed: file.isProcessed || null
       };
       
-      await this.filesCollection.insertOne({ _id: id.toString(), ...newFile });
+      await this.filesCollection.insertOne({ 
+        _id: id.toString(), 
+        docType: 'file',
+        ...newFile 
+      });
       return newFile;
     } catch (error) {
       console.error("Error creating file:", error);
@@ -406,7 +418,11 @@ export class AstraStorage implements IStorage {
         lastSynced: integration.lastSynced || null
       };
       
-      await this.integrationsCollection.insertOne({ _id: id.toString(), ...newIntegration });
+      await this.integrationsCollection.insertOne({ 
+        _id: id.toString(),
+        docType: 'integration',
+        ...newIntegration 
+      });
       return newIntegration;
     } catch (error) {
       console.error("Error creating integration:", error);
@@ -508,7 +524,11 @@ export class AstraStorage implements IStorage {
         isDismissed: recommendation.isDismissed || null
       };
       
-      await this.recommendationsCollection.insertOne({ _id: id.toString(), ...newRecommendation });
+      await this.recommendationsCollection.insertOne({ 
+        _id: id.toString(),
+        docType: 'recommendation',
+        ...newRecommendation 
+      });
       return newRecommendation;
     } catch (error) {
       console.error("Error creating recommendation:", error);
