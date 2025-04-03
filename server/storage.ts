@@ -48,6 +48,21 @@ export interface IStorage {
   // Stats methods
   getFileStats(userId: number): Promise<{ category: string; count: number }[]>;
   getIntegrationStats(userId: number): Promise<{ type: string; count: number }[]>;
+  
+  // Synchronization methods
+  synchronizeDropbox(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }>;
+  synchronizeIOS(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }>;
+  synchronizeUbuntu(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }>;
+  synchronizeWindows(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }>;
+  
+  // Platform file operations
+  getDropboxFiles(userId: number): Promise<File[]>;
+  getIOSFiles(userId: number): Promise<File[]>;
+  getUbuntuFiles(userId: number): Promise<File[]>;
+  getWindowsFiles(userId: number): Promise<File[]>;
+  
+  // Conflict resolution
+  resolveFileConflicts(userId: number, fileIds: number[]): Promise<{ resolved: number; failed: number }>;
 }
 
 export class MemStorage implements IStorage {
@@ -286,6 +301,322 @@ export class MemStorage implements IStorage {
     });
     
     return Array.from(types.entries()).map(([type, count]) => ({ type, count }));
+  }
+
+  // Synchronization methods
+  async synchronizeDropbox(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }> {
+    try {
+      const integration = await this.getIntegration(integrationId);
+      if (!integration || integration.userId !== userId || integration.type !== 'dropbox') {
+        return { success: false, fileCount: 0, errors: ['Invalid integration'] };
+      }
+
+      // Mark integration as syncing (in a real app, this would update UI state)
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date() 
+      });
+
+      // Simulate fetching files from Dropbox API
+      // In a real app, this would use the Dropbox API client
+      const sampleFiles: InsertFile[] = [
+        {
+          name: 'Project Proposal.docx',
+          path: '/Documents/Work/Project Proposal.docx',
+          fileType: '.docx',
+          fileCategory: 'document',
+          source: 'dropbox',
+          sourceId: 'dbx_1',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { size: 256000, shared: false },
+          isProcessed: false
+        },
+        {
+          name: 'Financial Report.xlsx',
+          path: '/Documents/Finance/Financial Report.xlsx',
+          fileType: '.xlsx',
+          fileCategory: 'document',
+          source: 'dropbox',
+          sourceId: 'dbx_2',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { size: 345000, shared: true },
+          isProcessed: false
+        }
+      ];
+
+      // Create files in our system
+      const createdFiles = await Promise.all(
+        sampleFiles.map(file => this.createFile(file))
+      );
+
+      return { success: true, fileCount: createdFiles.length };
+    } catch (error: any) {
+      return { 
+        success: false, 
+        fileCount: 0, 
+        errors: [error.message || 'Unknown error during Dropbox synchronization'] 
+      };
+    }
+  }
+
+  async synchronizeIOS(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }> {
+    try {
+      const integration = await this.getIntegration(integrationId);
+      if (!integration || integration.userId !== userId || integration.type !== 'ios') {
+        return { success: false, fileCount: 0, errors: ['Invalid iOS integration'] };
+      }
+
+      // Mark integration as syncing
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date() 
+      });
+
+      // Simulate fetching files from iOS device
+      // In a real app, this would use iOS file sharing API or iCloud API
+      const sampleFiles: InsertFile[] = [
+        {
+          name: 'Voice Memo.m4a',
+          path: '/Recordings/Voice Memo.m4a',
+          fileType: '.m4a',
+          fileCategory: 'audio',
+          source: 'ios',
+          sourceId: 'ios_1',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { duration: '2:45', size: 4500000 },
+          isProcessed: false
+        },
+        {
+          name: 'Notes from Meeting.txt',
+          path: '/Notes/Notes from Meeting.txt',
+          fileType: '.txt',
+          fileCategory: 'note',
+          source: 'ios',
+          sourceId: 'ios_2',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { size: 1500 },
+          isProcessed: false
+        },
+        {
+          name: 'Screenshot.png',
+          path: '/Photos/Screenshot.png',
+          fileType: '.png',
+          fileCategory: 'image',
+          source: 'ios',
+          sourceId: 'ios_3',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { dimensions: '1284x2778', size: 2400000 },
+          isProcessed: false
+        }
+      ];
+
+      // Create files in our system
+      const createdFiles = await Promise.all(
+        sampleFiles.map(file => this.createFile(file))
+      );
+
+      return { success: true, fileCount: createdFiles.length };
+    } catch (error: any) {
+      return { 
+        success: false, 
+        fileCount: 0, 
+        errors: [error.message || 'Unknown error during iOS synchronization'] 
+      };
+    }
+  }
+
+  async synchronizeUbuntu(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }> {
+    try {
+      const integration = await this.getIntegration(integrationId);
+      if (!integration || integration.userId !== userId || integration.type !== 'ubuntu') {
+        return { success: false, fileCount: 0, errors: ['Invalid Ubuntu integration'] };
+      }
+
+      // Mark integration as syncing
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date() 
+      });
+
+      // Simulate fetching files from Ubuntu
+      // In a real app, this would use SSH/SFTP or a dedicated sync client
+      const sampleFiles: InsertFile[] = [
+        {
+          name: 'app.py',
+          path: '/home/user/projects/python/app.py',
+          fileType: '.py',
+          fileCategory: 'code',
+          source: 'ubuntu',
+          sourceId: 'ubuntu_1',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { lines: 245, size: 8500 },
+          isProcessed: false
+        },
+        {
+          name: 'data.csv',
+          path: '/home/user/data/data.csv',
+          fileType: '.csv',
+          fileCategory: 'document',
+          source: 'ubuntu',
+          sourceId: 'ubuntu_2',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { rows: 1500, size: 75000 },
+          isProcessed: false
+        },
+        {
+          name: 'config.json',
+          path: '/home/user/config/config.json',
+          fileType: '.json',
+          fileCategory: 'code',
+          source: 'ubuntu',
+          sourceId: 'ubuntu_3',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { size: 2500 },
+          isProcessed: false
+        }
+      ];
+
+      // Create files in our system
+      const createdFiles = await Promise.all(
+        sampleFiles.map(file => this.createFile(file))
+      );
+
+      return { success: true, fileCount: createdFiles.length };
+    } catch (error: any) {
+      return { 
+        success: false, 
+        fileCount: 0, 
+        errors: [error.message || 'Unknown error during Ubuntu synchronization'] 
+      };
+    }
+  }
+
+  async synchronizeWindows(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }> {
+    try {
+      const integration = await this.getIntegration(integrationId);
+      if (!integration || integration.userId !== userId || integration.type !== 'windows') {
+        return { success: false, fileCount: 0, errors: ['Invalid Windows integration'] };
+      }
+
+      // Mark integration as syncing
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date() 
+      });
+
+      // Simulate fetching files from Windows
+      // In a real app, this would use a Windows sync client or OneDrive integration
+      const sampleFiles: InsertFile[] = [
+        {
+          name: 'Quarterly Report.pptx',
+          path: 'C:\\Users\\User\\Documents\\Presentations\\Quarterly Report.pptx',
+          fileType: '.pptx',
+          fileCategory: 'document',
+          source: 'windows',
+          sourceId: 'win_1',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { slides: 24, size: 5600000 },
+          isProcessed: false
+        },
+        {
+          name: 'Project Timeline.xlsx',
+          path: 'C:\\Users\\User\\Documents\\Project\\Timeline.xlsx',
+          fileType: '.xlsx',
+          fileCategory: 'document',
+          source: 'windows',
+          sourceId: 'win_2',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { sheets: 3, size: 450000 },
+          isProcessed: false
+        },
+        {
+          name: 'Requirements.docx',
+          path: 'C:\\Users\\User\\Documents\\Project\\Requirements.docx',
+          fileType: '.docx',
+          fileCategory: 'document',
+          source: 'windows',
+          sourceId: 'win_3',
+          lastModified: new Date(),
+          userId: userId,
+          metadata: { pages: 12, size: 350000 },
+          isProcessed: false
+        }
+      ];
+
+      // Create files in our system
+      const createdFiles = await Promise.all(
+        sampleFiles.map(file => this.createFile(file))
+      );
+
+      return { success: true, fileCount: createdFiles.length };
+    } catch (error: any) {
+      return { 
+        success: false, 
+        fileCount: 0, 
+        errors: [error.message || 'Unknown error during Windows synchronization'] 
+      };
+    }
+  }
+
+  // Platform file operations
+  async getDropboxFiles(userId: number): Promise<File[]> {
+    return this.getFilesBySource(userId, 'dropbox');
+  }
+
+  async getIOSFiles(userId: number): Promise<File[]> {
+    return this.getFilesBySource(userId, 'ios');
+  }
+
+  async getUbuntuFiles(userId: number): Promise<File[]> {
+    return this.getFilesBySource(userId, 'ubuntu');
+  }
+
+  async getWindowsFiles(userId: number): Promise<File[]> {
+    return this.getFilesBySource(userId, 'windows');
+  }
+
+  // Conflict resolution
+  async resolveFileConflicts(userId: number, fileIds: number[]): Promise<{ resolved: number; failed: number }> {
+    let resolved = 0;
+    let failed = 0;
+
+    for (const fileId of fileIds) {
+      const file = await this.getFile(fileId);
+      if (file && file.userId === userId) {
+        // In a real app, we would implement proper conflict resolution
+        // For MVP, we'll just mark the file as processed
+        let newMetadata: any = { conflictResolved: true, resolvedAt: new Date() };
+        
+        if (file.metadata && typeof file.metadata === 'object') {
+          newMetadata = { 
+            ...file.metadata as Record<string, any>,
+            conflictResolved: true,
+            resolvedAt: new Date()
+          };
+        }
+        
+        const success = await this.updateFile(fileId, { 
+          isProcessed: true,
+          metadata: newMetadata
+        });
+        
+        if (success) {
+          resolved++;
+        } else {
+          failed++;
+        }
+      } else {
+        failed++;
+      }
+    }
+
+    return { resolved, failed };
   }
 }
 

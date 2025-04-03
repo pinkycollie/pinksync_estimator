@@ -322,6 +322,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const gdrive = await activeStorage.getFilesBySource(user.id, "google_drive");
       const dropbox = await activeStorage.getFilesBySource(user.id, "dropbox");
       const notion = await activeStorage.getFilesBySource(user.id, "notion");
+      const ios = await activeStorage.getFilesBySource(user.id, "ios");
+      const ubuntu = await activeStorage.getFilesBySource(user.id, "ubuntu");
+      const windows = await activeStorage.getFilesBySource(user.id, "windows");
       
       // Get total processed files
       const allFiles = await activeStorage.getFiles(user.id);
@@ -348,12 +351,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
             fileCount: gdrive.length
           },
           dropbox: {
-            status: "disconnected",
-            fileCount: 0
+            status: dropbox.length > 0 ? "connected" : "disconnected",
+            fileCount: dropbox.length
           },
           notion: {
             status: notion.length > 0 ? "connected" : "disconnected",
             fileCount: notion.length
+          },
+          ios: {
+            status: ios.length > 0 ? "connected" : "disconnected",
+            fileCount: ios.length
+          },
+          ubuntu: {
+            status: ubuntu.length > 0 ? "connected" : "disconnected",
+            fileCount: ubuntu.length
+          },
+          windows: {
+            status: windows.length > 0 ? "connected" : "disconnected",
+            fileCount: windows.length
           }
         },
         fileAnalysis: {
@@ -385,6 +400,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
         error: error instanceof Error ? error.message : String(error)
       });
     }
+  });
+
+  // Platform synchronization endpoints
+  app.post("/api/sync/dropbox/:integrationId", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const { integrationId } = req.params;
+    const result = await activeStorage.synchronizeDropbox(user.id, parseInt(integrationId));
+    res.json(result);
+  });
+
+  app.post("/api/sync/ios/:integrationId", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const { integrationId } = req.params;
+    const result = await activeStorage.synchronizeIOS(user.id, parseInt(integrationId));
+    res.json(result);
+  });
+
+  app.post("/api/sync/ubuntu/:integrationId", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const { integrationId } = req.params;
+    const result = await activeStorage.synchronizeUbuntu(user.id, parseInt(integrationId));
+    res.json(result);
+  });
+
+  app.post("/api/sync/windows/:integrationId", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const { integrationId } = req.params;
+    const result = await activeStorage.synchronizeWindows(user.id, parseInt(integrationId));
+    res.json(result);
+  });
+
+  // Platform-specific file endpoints
+  app.get("/api/files/platform/dropbox", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const files = await activeStorage.getDropboxFiles(user.id);
+    res.json(files);
+  });
+
+  app.get("/api/files/platform/ios", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const files = await activeStorage.getIOSFiles(user.id);
+    res.json(files);
+  });
+
+  app.get("/api/files/platform/ubuntu", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const files = await activeStorage.getUbuntuFiles(user.id);
+    res.json(files);
+  });
+
+  app.get("/api/files/platform/windows", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const files = await activeStorage.getWindowsFiles(user.id);
+    res.json(files);
+  });
+
+  // Conflict resolution endpoint
+  app.post("/api/files/resolve-conflicts", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const fileIds = req.body.fileIds;
+    if (!Array.isArray(fileIds)) {
+      return res.status(400).json({ message: "Invalid request. Expected fileIds as an array." });
+    }
+    
+    const result = await activeStorage.resolveFileConflicts(user.id, fileIds);
+    res.json(result);
   });
 
   const httpServer = createServer(app);

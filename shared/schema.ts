@@ -100,6 +100,9 @@ export enum FileSource {
   DROPBOX = "dropbox",
   NOTION = "notion",
   ANYTYPE = "anytype",
+  IOS = "ios",
+  UBUNTU = "ubuntu",
+  WINDOWS = "windows",
 }
 
 // Integration type enum for reference
@@ -108,6 +111,9 @@ export enum IntegrationType {
   DROPBOX = "dropbox",
   NOTION = "notion",
   ANYTYPE = "anytype",
+  IOS = "ios",
+  UBUNTU = "ubuntu",
+  WINDOWS = "windows",
 }
 
 // Recommendation type enum for reference
