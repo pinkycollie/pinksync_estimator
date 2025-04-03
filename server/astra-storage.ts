@@ -13,7 +13,7 @@ import {
 // The Astra DB endpoint is the full URL to your database
 const ASTRA_DB_ENDPOINT = "https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com";
 const ASTRA_DB_TOKEN = process.env.ASTRA_DB_TOKEN || "";
-const ASTRA_DB_NAMESPACE = "pinky_os"; // Namespace/keyspace name
+const ASTRA_DB_NAMESPACE = "default_keyspace"; // Namespace/keyspace name
 
 // Check token format
 if (ASTRA_DB_TOKEN && !ASTRA_DB_TOKEN.startsWith("AstraCS:")) {
@@ -52,57 +52,50 @@ export class AstraStorage implements IStorage {
 
       try {
         // Parse the endpoint to extract the DB ID and region
-        // Format: https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com
+        // Parse the ID from the endpoint URL: https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com
+        // We need just the ID part: 2ba73933-3d26-47d9-a6f8-69b4f93a4611
         const urlParts = ASTRA_DB_ENDPOINT.split('.');
-        const dbIdWithRegion = urlParts[0].split('//')[1];
-        const [dbId, region] = dbIdWithRegion.split('-us-');
+        const hostPart = urlParts[0].split('//')[1];
+        const databaseId = hostPart.split('-us-')[0];
         
-        console.log(`Connecting to Astra DB with ID: ${dbId} in region: us-${region}`);
+        console.log(`Connecting to Astra DB with ID: ${databaseId}`);
+        
+        // Check that the token has the proper format (should start with "AstraCS:")
+        if (!ASTRA_DB_TOKEN.startsWith('AstraCS:')) {
+          console.warn('ASTRA_DB_TOKEN does not start with "AstraCS:" - this may cause authentication issues');
+        }
         
         // Initialize client using the new TypeScript SDK
         this.client = new DataAPIClient(ASTRA_DB_TOKEN);
         
-        // Make sure to append /api/rest/v2 to the endpoint as required by the new SDK
-        if (!ASTRA_DB_ENDPOINT.includes('/api/rest')) {
-          // For new SDK, we need to add the specific API endpoint
-          const apiEndpoint = `${ASTRA_DB_ENDPOINT}/api/rest/v2`;
-          console.log(`Using API endpoint: ${apiEndpoint}`);
-          this.db = this.client.db(apiEndpoint);
-        } else {
-          this.db = this.client.db(ASTRA_DB_ENDPOINT);
-        }
+        // Set up the database client with just the ID
+        this.db = this.client.db(databaseId);
+        console.log(`Using database ID: ${databaseId}`);
         
         console.log("Astra client created successfully");
 
-        // First create the namespace/keyspace if it doesn't exist
-        try {
-          await this.db.createNamespace(ASTRA_DB_NAMESPACE);
-          console.log(`Created namespace: ${ASTRA_DB_NAMESPACE}`);
-        } catch (nsError) {
-          console.log(`Namespace ${ASTRA_DB_NAMESPACE} may already exist: ${nsError.message}`);
-        }
-
-        // Create or get collections
+        // Create or get collections - note that the namespace should already exist
+        // We will skip namespace creation as it should be created in the Astra DB console
         this.usersCollection = this.db.collection(ASTRA_DB_NAMESPACE, "users");
         this.filesCollection = this.db.collection(ASTRA_DB_NAMESPACE, "files");
         this.integrationsCollection = this.db.collection(ASTRA_DB_NAMESPACE, "integrations");
         this.recommendationsCollection = this.db.collection(ASTRA_DB_NAMESPACE, "recommendations");
         
-        // Try a simple test operation to verify connection
+        console.log("Created collection references for:", ASTRA_DB_NAMESPACE);
+        
+        // Test the connection with a simple findOne operation
         try {
-          // Try creating indexes to verify connection
-          await this.usersCollection.createIndex({ fields: [{ name: "id" }] });
-          await this.filesCollection.createIndex({ fields: [{ name: "userId" }] });
-          console.log("Successfully created indexes - connection verified");
+          // Try a simple query to test connection
+          const testDoc = await this.usersCollection?.findOne({ username: "test" });
+          console.log("Connection verified with findOne operation");
           this.isConnected = true;
-        } catch (indexError) {
-          console.log("Index creation attempted, may already exist:", indexError.message);
-          // Let's try a different operation to test connection
-          try {
-            const simpleTest = await this.usersCollection.findOne({ id: 1 });
-            console.log("Connection test successful");
+        } catch (findError: any) {
+          // Check if the error is just that the document wasn't found (404)
+          // which still means the connection is working
+          if (findError.status === 404) {
+            console.log("Connection verified (document not found but connection works)");
             this.isConnected = true;
-          } catch (findError) {
+          } else {
             console.error("Failed to verify connection:", findError);
             this.isConnected = false;
           }
@@ -130,7 +123,7 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.usersCollection.findOne({ id });
-      return response as User || undefined;
+      return response as unknown as User || undefined;
     } catch (error) {
       console.error("Error getting user:", error);
       return undefined;
@@ -146,7 +139,9 @@ export class AstraStorage implements IStorage {
       }
       
       const response = await this.usersCollection.find({ username }, { limit: 1 });
-      return response.length > 0 ? response[0] as User : undefined;
+      // Convert FindCursor to array for easier handling
+      const results = await response.toArray();
+      return results.length > 0 ? results[0] as unknown as User : undefined;
     } catch (error) {
       console.error("Error getting user by username:", error);
       // Throw to trigger the fallback to memory storage in the useAstraDB function
@@ -166,8 +161,9 @@ export class AstraStorage implements IStorage {
     try {
       // Get all users to determine next ID
       const allUsers = await this.usersCollection.find({});
-      const id = allUsers.length > 0 
-        ? Math.max(...allUsers.map((u: User) => u.id)) + 1
+      const users = await allUsers.toArray();
+      const id = users.length > 0 
+        ? Math.max(...users.map((u: any) => u.id)) + 1
         : 1;
       
       const newUser: User = { 
@@ -193,7 +189,8 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.filesCollection.find({ userId });
-      return response as File[];
+      const results = await response.toArray();
+      return results as unknown as File[];
     } catch (error) {
       console.error("Error getting files:", error);
       return [];
@@ -206,7 +203,8 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.filesCollection.find({ userId, category });
-      return response as File[];
+      const results = await response.toArray();
+      return results as unknown as File[];
     } catch (error) {
       console.error("Error getting files by category:", error);
       return [];
@@ -219,7 +217,8 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.filesCollection.find({ userId, source });
-      return response as File[];
+      const results = await response.toArray();
+      return results as unknown as File[];
     } catch (error) {
       console.error("Error getting files by source:", error);
       return [];
@@ -232,12 +231,14 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.filesCollection.find({ userId }, { limit });
+      const results = await response.toArray();
+      
       // Sort by lastModified desc
-      return response
-        .sort((a: File, b: File) => 
+      return results
+        .sort((a: any, b: any) => 
           new Date(b.lastModified).getTime() - new Date(a.lastModified).getTime()
         )
-        .slice(0, limit) as File[];
+        .slice(0, limit) as unknown as File[];
     } catch (error) {
       console.error("Error getting recent files:", error);
       return [];
@@ -250,7 +251,7 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.filesCollection.findOne({ id });
-      return response as File || undefined;
+      return response as unknown as File || undefined;
     } catch (error) {
       console.error("Error getting file:", error);
       return undefined;
@@ -266,8 +267,9 @@ export class AstraStorage implements IStorage {
     try {
       // Get all files to determine next ID
       const allFiles = await this.filesCollection.find({});
-      const id = allFiles.length > 0 
-        ? Math.max(...allFiles.map((f: File) => f.id)) + 1
+      const files = await allFiles.toArray();
+      const id = files.length > 0 
+        ? Math.max(...files.map((f: any) => f.id)) + 1
         : 1;
       
       const newFile: File = { 
@@ -326,7 +328,8 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.integrationsCollection.find({ userId });
-      return response as Integration[];
+      const results = await response.toArray();
+      return results as unknown as Integration[];
     } catch (error) {
       console.error("Error getting integrations:", error);
       return [];
@@ -339,7 +342,7 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.integrationsCollection.findOne({ id });
-      return response as Integration || undefined;
+      return response as unknown as Integration || undefined;
     } catch (error) {
       console.error("Error getting integration:", error);
       return undefined;
@@ -352,7 +355,8 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.integrationsCollection.find({ userId, type }, { limit: 1 });
-      return response.length > 0 ? response[0] as Integration : undefined;
+      const results = await response.toArray();
+      return results.length > 0 ? results[0] as unknown as Integration : undefined;
     } catch (error) {
       console.error("Error getting integration by type:", error);
       return undefined;
@@ -368,8 +372,9 @@ export class AstraStorage implements IStorage {
     try {
       // Get all integrations to determine next ID
       const allIntegrations = await this.integrationsCollection.find({});
-      const id = allIntegrations.length > 0 
-        ? Math.max(...allIntegrations.map((i: Integration) => i.id)) + 1
+      const integrations = await allIntegrations.toArray();
+      const id = integrations.length > 0 
+        ? Math.max(...integrations.map((i: any) => i.id)) + 1
         : 1;
       
       const newIntegration: Integration = { 
@@ -425,7 +430,8 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.recommendationsCollection.find({ userId });
-      return response as Recommendation[];
+      const results = await response.toArray();
+      return results as unknown as Recommendation[];
     } catch (error) {
       console.error("Error getting recommendations:", error);
       return [];
@@ -439,7 +445,8 @@ export class AstraStorage implements IStorage {
     try {
       // Get all recommendations for the user and filter by isDismissed
       const response = await this.recommendationsCollection.find({ userId });
-      return response.filter((rec: Recommendation) => !rec.isDismissed) as Recommendation[];
+      const results = await response.toArray();
+      return results.filter((rec: any) => !rec.isDismissed) as unknown as Recommendation[];
     } catch (error) {
       console.error("Error getting active recommendations:", error);
       return [];
@@ -452,7 +459,7 @@ export class AstraStorage implements IStorage {
     
     try {
       const response = await this.recommendationsCollection.findOne({ id });
-      return response as Recommendation || undefined;
+      return response as unknown as Recommendation || undefined;
     } catch (error) {
       console.error("Error getting recommendation:", error);
       return undefined;
@@ -468,8 +475,9 @@ export class AstraStorage implements IStorage {
     try {
       // Get all recommendations to determine next ID
       const allRecommendations = await this.recommendationsCollection.find({});
-      const id = allRecommendations.length > 0 
-        ? Math.max(...allRecommendations.map((r: Recommendation) => r.id)) + 1
+      const recommendations = await allRecommendations.toArray();
+      const id = recommendations.length > 0 
+        ? Math.max(...recommendations.map((r: any) => r.id)) + 1
         : 1;
       
       const newRecommendation: Recommendation = { 
