@@ -92,7 +92,14 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.userIdCounter++;
-    const user: User = { ...insertUser, id };
+    // Type-safe initialization
+    const user: User = { 
+      id,
+      username: insertUser.username,
+      password: insertUser.password,
+      email: insertUser.email ?? null,
+      displayName: insertUser.displayName ?? null
+    };
     this.users.set(id, user);
     return user;
   }
@@ -133,7 +140,20 @@ export class MemStorage implements IStorage {
 
   async createFile(insertFile: InsertFile): Promise<File> {
     const id = this.fileIdCounter++;
-    const file: File = { ...insertFile, id };
+    // Type-safe initialization
+    const file: File = { 
+      id,
+      name: insertFile.name,
+      source: insertFile.source,
+      lastModified: insertFile.lastModified,
+      userId: insertFile.userId,
+      path: insertFile.path ?? null,
+      fileType: insertFile.fileType ?? null,
+      fileCategory: insertFile.fileCategory ?? null,
+      sourceId: insertFile.sourceId ?? null,
+      metadata: insertFile.metadata ?? null,
+      isProcessed: insertFile.isProcessed ?? null
+    };
     this.files.set(id, file);
     return file;
   }
@@ -170,7 +190,16 @@ export class MemStorage implements IStorage {
 
   async createIntegration(insertIntegration: InsertIntegration): Promise<Integration> {
     const id = this.integrationIdCounter++;
-    const integration: Integration = { ...insertIntegration, id };
+    // Type-safe initialization
+    const integration: Integration = { 
+      id,
+      name: insertIntegration.name,
+      type: insertIntegration.type,
+      userId: insertIntegration.userId,
+      isConnected: insertIntegration.isConnected ?? null,
+      config: insertIntegration.config ?? null,
+      lastSynced: insertIntegration.lastSynced ?? null
+    };
     this.integrations.set(id, integration);
     return integration;
   }
@@ -207,7 +236,17 @@ export class MemStorage implements IStorage {
 
   async createRecommendation(insertRecommendation: InsertRecommendation): Promise<Recommendation> {
     const id = this.recommendationIdCounter++;
-    const recommendation: Recommendation = { ...insertRecommendation, id };
+    // Type-safe initialization
+    const recommendation: Recommendation = { 
+      id,
+      type: insertRecommendation.type,
+      userId: insertRecommendation.userId,
+      title: insertRecommendation.title,
+      description: insertRecommendation.description,
+      createdAt: insertRecommendation.createdAt,
+      source: insertRecommendation.source ?? null,
+      isDismissed: insertRecommendation.isDismissed ?? null
+    };
     this.recommendations.set(id, recommendation);
     return recommendation;
   }
