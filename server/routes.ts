@@ -2,7 +2,8 @@ import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import type { IStorage } from "./storage"; 
-import { astraStorage } from "./astra-storage";
+import { replitStorage } from "./replit-storage";
+import { setupAuth, isAuthenticated } from "./replitAuth";
 import { z } from "zod";
 import { insertFileSchema, insertIntegrationSchema, insertRecommendationSchema, type InsertFile, type File } from "@shared/schema";
 import { analyzeAndCategorizeFile } from "./utils/aiUtils";
@@ -14,35 +15,55 @@ import oauthRouter from "./routes/oauth";
 // Set up storage with fallback to in-memory when Astra DB connection fails
 let activeStorage: IStorage = storage; // Default to in-memory storage
 
-// For testing purposes, we'll use in-memory storage to test vector search functionality
-export const useAstraDB = async () => {
-  console.log("Using in-memory storage for vector search testing");
-  activeStorage = storage;
-  
-  // Create a default user in memory if needed
+// Try to use Replit Database storage, fallback to in-memory if it fails
+export const useReplitStorage = async () => {
   try {
-    const memUser = await storage.getUserByUsername("pinky");
-    if (!memUser) {
-      await storage.createUser({
-        username: "pinky",
-        displayName: "Pinky Kim",
-        email: "pinky@example.com",
-        password: "password123" // Required field
-      });
-      console.log("Created default user 'pinky' in memory storage");
-    } else {
-      console.log("Using existing user 'pinky' from memory storage");
+    console.log("Attempting to use Replit Database for storage");
+    
+    // Test query to verify connection
+    await replitStorage.getUser(1);
+    activeStorage = replitStorage;
+    console.log("Successfully connected to Replit Database");
+    
+    return true;
+  } catch (error) {
+    console.error("Failed to connect to Replit Database:", error);
+    console.log("Falling back to in-memory storage");
+    activeStorage = storage;
+    
+    // Create a default user in memory if needed
+    try {
+      const memUser = await storage.getUserByUsername("pinky");
+      if (!memUser) {
+        await storage.createUser({
+          username: "pinky",
+          displayName: "Pinky Kim",
+          email: "pinky@example.com",
+          password: "password123" // Required field
+        });
+        console.log("Created default user 'pinky' in memory storage");
+      } else {
+        console.log("Using existing user 'pinky' from memory storage");
+      }
+    } catch (memErr) {
+      console.error("Failed to initialize memory storage user:", memErr);
     }
-  } catch (memErr) {
-    console.error("Failed to initialize memory storage user:", memErr);
+    
+    return false;
   }
-  
-  return false; // Indicate we're not using Astra DB
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Try to use Astra DB storage if available
-  await useAstraDB();
+  // Try to use Replit Database storage if available
+  await useReplitStorage();
+  
+  // Set up Replit Auth
+  await setupAuth(app);
+  
+  // Authentication routes
+  app.get('/api/auth/user', (req: any, res) => {
+    res.json(req.session?.passport?.user || null);
+  });
   
   // API routes, all prefixed with /api
   
@@ -345,12 +366,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get file stats by category
       const fileStats = await activeStorage.getFileStats(user.id);
       
-      // Check if we're using Astra DB or memory storage
-      const usingAstraDb = activeStorage === astraStorage;
+      // Check if we're using Replit Database or in-memory storage
+      const usingReplitDb = activeStorage === replitStorage;
       
       res.json({
         database: {
-          type: usingAstraDb ? "Astra DB" : "In-memory",
+          type: usingReplitDb ? "Replit Database" : "In-memory",
           status: "connected"
         },
         sources: {
@@ -398,11 +419,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Database health check endpoint
   app.get("/api/system/db-status", async (req: Request, res: Response) => {
     try {
-      // Check if we're connected to Astra DB
-      const astraConnected = activeStorage === astraStorage;
+      // Check if we're connected to Replit Database
+      const replitDbConnected = activeStorage === replitStorage;
       
       res.json({
-        dbType: astraConnected ? "Astra DB" : "In-memory",
+        dbType: replitDbConnected ? "Replit Database" : "In-memory",
         status: "connected",
         timestamp: new Date().toISOString()
       });

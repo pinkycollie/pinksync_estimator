@@ -1,6 +1,6 @@
 import { useAppContext } from '@/contexts/AppContext';
 import { Link, useLocation } from 'wouter';
-import { BrainCog, FolderOpen, Home, Settings, ChevronRight, CheckSquare, LineChart } from 'lucide-react';
+import { BrainCog, FolderOpen, Home, Settings, ChevronRight, CheckSquare, LineChart, LogOut } from 'lucide-react';
 import { SiNotion, SiDropbox, SiGoogledrive } from 'react-icons/si';
 import { Button } from '@/components/ui/button';
 import { 
@@ -16,11 +16,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useQuery } from '@tanstack/react-query';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Sidebar() {
   const { sidebarOpen } = useAppContext();
   const [location] = useLocation();
   const { toast } = useToast();
+  const { user: authUser, isAuthenticated } = useAuth();
   
   // Fetch user info
   const { data: user } = useQuery({
@@ -31,6 +33,11 @@ export default function Sidebar() {
   const { data: integrations } = useQuery({
     queryKey: ['/api/integrations'],
   });
+  
+  // Handle logout
+  const handleLogout = () => {
+    window.location.href = '/api/logout';
+  };
   
   // Main navigation items
   const mainNavItems = [
@@ -150,41 +157,54 @@ export default function Sidebar() {
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <div className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center">
-              <span className="text-sm font-semibold">{user?.displayName?.substring(0, 2) || 'PK'}</span>
+              {authUser?.profile_image_url ? (
+                <img 
+                  src={authUser.profile_image_url} 
+                  alt={authUser.username || "User"} 
+                  className="w-8 h-8 rounded-full"
+                />
+              ) : (
+                <span className="text-sm font-semibold">{authUser?.username?.substring(0, 2) || user?.displayName?.substring(0, 2) || 'PK'}</span>
+              )}
             </div>
             <div className="ml-3">
-              <div className="text-sm font-medium">{user?.displayName || 'Pinky Kim'}</div>
-              <div className="text-xs text-neutral-500 dark:text-neutral-400">{user?.email || 'pinky@example.com'}</div>
+              <div className="text-sm font-medium">{authUser?.username || user?.displayName || 'User'}</div>
+              <div className="text-xs text-neutral-500 dark:text-neutral-400">{authUser?.email || user?.email || ''}</div>
             </div>
           </div>
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="icon">
-                <Settings className="h-5 w-5" />
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Settings</DialogTitle>
-                <DialogDescription>
-                  Adjust your personal preferences and integration settings.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Display Name</Label>
-                  <Input id="name" defaultValue={user?.displayName || 'Pinky Kim'} />
+          <div className="flex items-center space-x-2">
+            <Button variant="ghost" size="icon" onClick={handleLogout} title="Log out">
+              <LogOut className="h-5 w-5" />
+            </Button>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="icon">
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Settings</DialogTitle>
+                  <DialogDescription>
+                    Adjust your personal preferences and integration settings.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Display Name</Label>
+                    <Input id="name" defaultValue={authUser?.username || user?.displayName || ''} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" defaultValue={authUser?.email || user?.email || ''} />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" defaultValue={user?.email || 'pinky@example.com'} />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button>Save changes</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+                <DialogFooter>
+                  <Button>Save changes</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </div>
       </div>
     </aside>

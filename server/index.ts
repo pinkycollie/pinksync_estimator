@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes, useAstraDB } from "./routes";
+import { registerRoutes, useReplitStorage } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -37,9 +37,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Try to connect to Astra DB before registering routes
+  // Try to connect to Replit Database before registering routes
   try {
-    await useAstraDB();
+    await useReplitStorage();
   } catch (error) {
     console.error("Error initializing database connection:", error);
     // We'll still continue and use in-memory storage

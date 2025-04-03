@@ -4,6 +4,10 @@ import {
   Integration, InsertIntegration, 
   Recommendation, InsertRecommendation
 } from "@shared/schema";
+import session from "express-session";
+import createMemoryStore from "memorystore";
+
+const MemoryStore = createMemoryStore(session);
 
 // Re-export types for use in other files
 export type { 
@@ -14,6 +18,9 @@ export type {
 };
 
 export interface IStorage {
+  // Session storage for authentication
+  sessionStore: session.Store;
+  
   // User methods
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
@@ -72,6 +79,7 @@ export interface IStorage {
 }
 
 export class MemStorage implements IStorage {
+  sessionStore: session.Store;
   private users: Map<number, User>;
   private files: Map<number, File>;
   private integrations: Map<number, Integration>;
@@ -82,6 +90,10 @@ export class MemStorage implements IStorage {
   private recommendationIdCounter: number;
 
   constructor() {
+    // Initialize session store
+    this.sessionStore = new MemoryStore({
+      checkPeriod: 86400000, // prune expired entries every 24h
+    });
     this.users = new Map();
     this.files = new Map();
     this.integrations = new Map();

@@ -9,9 +9,19 @@ import RecentFiles from '@/components/dashboard/RecentFiles';
 import Integrations from '@/components/dashboard/Integrations';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Input } from '@/components/ui/input';
-import { Search } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import { Search, LogOut, User } from 'lucide-react';
 import { useAppContext } from '@/contexts/AppContext';
 import { queryClient } from '@/lib/queryClient';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function Dashboard() {
   const { sidebarOpen } = useAppContext();
@@ -24,10 +34,18 @@ export default function Dashboard() {
     queryClient.prefetchQuery({ queryKey: ['/api/integrations'] });
   }, []);
   
-  // Fetch user data
+  // Get authenticated user data
+  const { user: authUser, isAuthenticated } = useAuth();
+  
+  // Fetch app user data
   const { data: user } = useQuery({
     queryKey: ['/api/user'],
   });
+  
+  // Handle logout
+  const handleLogout = () => {
+    window.location.href = '/api/logout';
+  };
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -58,6 +76,43 @@ export default function Dashboard() {
               <div className="hidden md:block">
                 <ThemeToggle />
               </div>
+              
+              {/* User menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+                    <Avatar className="h-8 w-8">
+                      {authUser?.profile_image_url && (
+                        <AvatarImage 
+                          src={authUser.profile_image_url} 
+                          alt={authUser.username || "User avatar"} 
+                        />
+                      )}
+                      <AvatarFallback>{authUser?.username?.substring(0, 2) || "U"}</AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-56" align="end" forceMount>
+                  <div className="flex flex-col space-y-1 p-2">
+                    <p className="text-sm font-medium leading-none">
+                      {authUser?.username || "User"}
+                    </p>
+                    <p className="text-xs leading-none text-muted-foreground">
+                      {authUser?.email || ""}
+                    </p>
+                  </div>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <button 
+                      className="w-full cursor-pointer flex items-center" 
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </button>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
           
