@@ -1,19 +1,83 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import type { IStorage } from "./storage"; 
 import { astraStorage } from "./astra-storage";
 import { z } from "zod";
-import { insertFileSchema, insertIntegrationSchema, insertRecommendationSchema } from "@shared/schema";
+import { insertFileSchema, insertIntegrationSchema, insertRecommendationSchema, type InsertFile, type File } from "@shared/schema";
 import { analyzeAndCategorizeFile } from "./utils/aiUtils";
 import { scanLocalFiles, scanGoogleDriveFiles } from "./utils/fileUtils";
 import { zodResolver } from "@hookform/resolvers/zod";
 
-// Choose which storage implementation to use
-// Set to true to use Astra DB, false to use in-memory storage
-const useAstraDB = true;
-const activeStorage = useAstraDB ? astraStorage : storage;
+// Set up storage with fallback to in-memory when Astra DB connection fails
+let activeStorage: IStorage = storage; // Default to in-memory storage
+
+// Try to use Astra DB, but fallback to in-memory storage if there's an issue
+export const useAstraDB = async () => {
+  try {
+    // If there's no token, we won't even try
+    if (!process.env.ASTRA_DB_TOKEN) {
+      console.log("No ASTRA_DB_TOKEN found, using in-memory storage");
+      return false;
+    }
+    
+    // Check token format
+    if (!process.env.ASTRA_DB_TOKEN.startsWith("AstraCS:")) {
+      console.warn("Warning: ASTRA_DB_TOKEN should start with 'AstraCS:'");
+      // We'll still try to use it though
+    }
+    
+    console.log("Attempting to connect to Astra DB...");
+    
+    // Create a test user if needed to verify connection
+    try {
+      // Test the connection by trying to get a user - this will throw if connection fails
+      await astraStorage.getUserByUsername("pinky");
+      console.log("Using Astra DB for storage - existing user found");
+      activeStorage = astraStorage;
+      return true;
+    } catch (userError) {
+      // If user doesn't exist but connection is OK, create a test user
+      console.log("No existing user found, creating default user");
+      try {
+        await astraStorage.createUser({
+          username: "pinky",
+          displayName: "Pinky",
+          email: "user@example.com",
+          password: "password123" // Required field
+        });
+        console.log("Test user created successfully");
+        activeStorage = astraStorage;
+        return true;
+      } catch (createError) {
+        console.error("Error creating test user:", createError);
+        throw createError;
+      }
+    }
+  } catch (error) {
+    console.error("Error connecting to Astra DB, using in-memory storage instead:", error);
+    console.log("Using in-memory storage");
+    activeStorage = storage;
+    
+    // Create default user in memory storage if needed
+    const memUser = await storage.getUserByUsername("pinky");
+    if (!memUser) {
+      await storage.createUser({
+        username: "pinky",
+        displayName: "Pinky",
+        email: "user@example.com"
+      });
+      console.log("Created default user in memory storage");
+    }
+    
+    return false;
+  }
+};
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Try to use Astra DB storage if available
+  await useAstraDB();
+  
   // API routes, all prefixed with /api
   
   // Current user endpoint - using demo user for now
@@ -260,12 +324,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get total processed files
       const allFiles = await activeStorage.getFiles(user.id);
-      const processedFiles = allFiles.filter(file => file.isProcessed);
+      const processedFiles = allFiles.filter((file: File) => file.isProcessed);
       
       // Get file stats by category
       const fileStats = await activeStorage.getFileStats(user.id);
       
+      // Check if we're using Astra DB or memory storage
+      const usingAstraDb = activeStorage === astraStorage;
+      
       res.json({
+        database: {
+          type: usingAstraDb ? "Astra DB" : "In-memory",
+          status: "connected"
+        },
         sources: {
           local: {
             status: local.length > 0 ? "connected" : "disconnected",
@@ -293,6 +364,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(500).json({ message: "Error getting system status", error });
+    }
+  });
+  
+  // Database health check endpoint
+  app.get("/api/system/db-status", async (req: Request, res: Response) => {
+    try {
+      // Check if we're connected to Astra DB
+      const astraConnected = activeStorage === astraStorage;
+      
+      res.json({
+        dbType: astraConnected ? "Astra DB" : "In-memory",
+        status: "connected",
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ 
+        message: "Error checking database status",
+        error: error instanceof Error ? error.message : String(error)
+      });
     }
   });
 

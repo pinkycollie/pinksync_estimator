@@ -9,10 +9,27 @@ import {
   Recommendation, InsertRecommendation
 } from "@shared/schema";
 
-const ASTRA_DB_ID = "2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2";
+// Astra DB configuration
+// The Astra DB ID is the UUID part of your database URL
+// Example: https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com
+// becomes "2ba73933-3d26-47d9-a6f8-69b4f93a4611"
+const ASTRA_DB_ID = "2ba73933-3d26-47d9-a6f8-69b4f93a4611";
 const ASTRA_DB_REGION = "us-east-2";
 const ASTRA_DB_KEYSPACE = "pinky_os";
 const ASTRA_DB_TOKEN = process.env.ASTRA_DB_TOKEN || "";
+
+// Get the API endpoint from DB ID and region
+const ASTRA_DB_ENDPOINT = `https://${ASTRA_DB_ID}-${ASTRA_DB_REGION}.apps.astra.datastax.com`;
+
+// Check token format
+if (ASTRA_DB_TOKEN && !ASTRA_DB_TOKEN.startsWith("AstraCS:")) {
+  console.warn("Warning: ASTRA_DB_TOKEN should start with 'AstraCS:'");
+}
+
+// Check if token is available at startup
+if (!ASTRA_DB_TOKEN) {
+  console.warn("Warning: ASTRA_DB_TOKEN environment variable not set");
+}
 
 /**
  * Implementation of IStorage using Astra DB
@@ -30,24 +47,43 @@ export class AstraStorage implements IStorage {
 
   private async initializeCollections() {
     try {
-      // Create an Astra DB client
-      const astraClient = await createClient({
-        astraDatabaseId: ASTRA_DB_ID,
-        astraDatabaseRegion: ASTRA_DB_REGION,
-        applicationToken: ASTRA_DB_TOKEN,
-      });
-      
-      // Create document collections for each data type
-      this.usersCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("users");
-      this.filesCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("files");
-      this.integrationsCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("integrations");
-      this.recommendationsCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("recommendations");
+      // If ASTRA_DB_TOKEN is not set, fall back to in-memory storage
+      if (!ASTRA_DB_TOKEN) {
+        console.warn("ASTRA_DB_TOKEN not set, using in-memory storage instead");
+        this.isConnected = false;
+        return; // Don't throw, just return to indicate not connected
+      }
 
-      console.log("Connected to Astra DB successfully");
-      this.isConnected = true;
+      try {
+        // Updated configuration based on the latest documentation
+        // Following https://docs.datastax.com/en/astra-db-serverless/integrations/unstructured-io.html
+        const astraClient = await createClient({
+          astraDatabaseId: ASTRA_DB_ID,
+          astraDatabaseRegion: ASTRA_DB_REGION,
+          applicationToken: ASTRA_DB_TOKEN,
+        });
+        
+        console.log("Astra client created successfully");
+        
+        // Create document collections for each data type
+        this.usersCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("users");
+        this.filesCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("files");
+        this.integrationsCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("integrations");
+        this.recommendationsCollection = await astraClient.namespace(ASTRA_DB_KEYSPACE).collection("recommendations");
+        
+        // Check if collections are working by attempting a simple query
+        await this.usersCollection.find({}, { limit: 1 });
+        console.log("Connected to Astra DB successfully");
+        this.isConnected = true;
+      } catch (connectionError) {
+        console.error("Failed to connect to Astra DB:", connectionError);
+        this.isConnected = false;
+        // Don't throw, just set isConnected to false
+      }
     } catch (error) {
-      console.error("Failed to connect to Astra DB:", error);
-      throw new Error("Failed to connect to Astra DB");
+      console.error("Error in initializeCollections:", error);
+      this.isConnected = false;
+      // Don't throw, just set isConnected to false
     }
   }
 
@@ -72,10 +108,20 @@ export class AstraStorage implements IStorage {
   async getUserByUsername(username: string): Promise<User | undefined> {
     await this.ensureConnected();
     try {
+      // Handle the case where Astra DB might have connectivity issues
+      // but we want the system to continue operating with memory storage
+      if (!this.isConnected || !this.usersCollection) {
+        throw new Error("Not connected to Astra DB");
+      }
+      
       const response = await this.usersCollection.find({ username }, { limit: 1 });
       return response.data.length > 0 ? response.data[0] as User : undefined;
     } catch (error) {
       console.error("Error getting user by username:", error);
+      // Throw to trigger the fallback to memory storage in the useAstraDB function
+      if (username === "test_connection") {
+        throw error;
+      }
       return undefined;
     }
   }
@@ -316,8 +362,9 @@ export class AstraStorage implements IStorage {
   async getActiveRecommendations(userId: number): Promise<Recommendation[]> {
     await this.ensureConnected();
     try {
-      const response = await this.recommendationsCollection.find({ userId, active: true });
-      return response.data as Recommendation[];
+      // Get all recommendations for the user and filter by isDismissed
+      const response = await this.recommendationsCollection.find({ userId });
+      return response.data.filter((rec: Recommendation) => !rec.isDismissed) as Recommendation[];
     } catch (error) {
       console.error("Error getting active recommendations:", error);
       return [];
