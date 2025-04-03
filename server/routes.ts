@@ -1,18 +1,24 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { astraStorage } from "./astra-storage";
 import { z } from "zod";
 import { insertFileSchema, insertIntegrationSchema, insertRecommendationSchema } from "@shared/schema";
 import { analyzeAndCategorizeFile } from "./utils/aiUtils";
 import { scanLocalFiles, scanGoogleDriveFiles } from "./utils/fileUtils";
 import { zodResolver } from "@hookform/resolvers/zod";
 
+// Choose which storage implementation to use
+// Set to true to use Astra DB, false to use in-memory storage
+const useAstraDB = true;
+const activeStorage = useAstraDB ? astraStorage : storage;
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // API routes, all prefixed with /api
   
   // Current user endpoint - using demo user for now
   app.get("/api/user", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -24,57 +30,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // File endpoints
   app.get("/api/files", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
-    const files = await storage.getFiles(user.id);
+    const files = await activeStorage.getFiles(user.id);
     res.json(files);
   });
   
   app.get("/api/files/recent", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
     const limit = req.query.limit ? parseInt(req.query.limit as string) : 10;
-    const recentFiles = await storage.getRecentFiles(user.id, limit);
+    const recentFiles = await activeStorage.getRecentFiles(user.id, limit);
     res.json(recentFiles);
   });
   
   app.get("/api/files/category/:category", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
     const { category } = req.params;
-    const files = await storage.getFilesByCategory(user.id, category);
+    const files = await activeStorage.getFilesByCategory(user.id, category);
     res.json(files);
   });
   
   app.get("/api/files/source/:source", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
     const { source } = req.params;
-    const files = await storage.getFilesBySource(user.id, source);
+    const files = await activeStorage.getFilesBySource(user.id, source);
     res.json(files);
   });
   
   app.post("/api/files", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
     try {
       const fileData = insertFileSchema.parse(req.body);
-      const file = await storage.createFile({
+      const file = await activeStorage.createFile({
         ...fileData,
         userId: user.id
       });
@@ -82,7 +88,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Process the file with AI categorization
       const categorizedFile = await analyzeAndCategorizeFile(file);
       if (categorizedFile) {
-        await storage.updateFile(file.id, {
+        await activeStorage.updateFile(file.id, {
           fileCategory: categorizedFile.fileCategory,
           isProcessed: true
         });
@@ -95,35 +101,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.get("/api/files/stats", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
-    const stats = await storage.getFileStats(user.id);
+    const stats = await activeStorage.getFileStats(user.id);
     res.json(stats);
   });
   
   // Integration endpoints
   app.get("/api/integrations", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
-    const integrations = await storage.getIntegrations(user.id);
+    const integrations = await activeStorage.getIntegrations(user.id);
     res.json(integrations);
   });
   
   app.post("/api/integrations", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
     try {
       const integrationData = insertIntegrationSchema.parse(req.body);
-      const integration = await storage.createIntegration({
+      const integration = await activeStorage.createIntegration({
         ...integrationData,
         userId: user.id
       });
@@ -139,7 +145,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const updates = req.body;
-      const updatedIntegration = await storage.updateIntegration(integrationId, updates);
+      const updatedIntegration = await activeStorage.updateIntegration(integrationId, updates);
       
       if (!updatedIntegration) {
         return res.status(404).json({ message: "Integration not found" });
@@ -153,7 +159,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // Recommendation endpoints
   app.get("/api/recommendations", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -162,23 +168,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     let recommendations;
     
     if (active) {
-      recommendations = await storage.getActiveRecommendations(user.id);
+      recommendations = await activeStorage.getActiveRecommendations(user.id);
     } else {
-      recommendations = await storage.getRecommendations(user.id);
+      recommendations = await activeStorage.getRecommendations(user.id);
     }
     
     res.json(recommendations);
   });
   
   app.post("/api/recommendations", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
     try {
       const recommendationData = insertRecommendationSchema.parse(req.body);
-      const recommendation = await storage.createRecommendation({
+      const recommendation = await activeStorage.createRecommendation({
         ...recommendationData,
         userId: user.id
       });
@@ -194,7 +200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     try {
       const updates = req.body;
-      const updatedRecommendation = await storage.updateRecommendation(recommendationId, updates);
+      const updatedRecommendation = await activeStorage.updateRecommendation(recommendationId, updates);
       
       if (!updatedRecommendation) {
         return res.status(404).json({ message: "Recommendation not found" });
@@ -208,7 +214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // System endpoints
   app.post("/api/system/scan", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -227,7 +233,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Process and save files
       for (const fileData of files) {
-        await storage.createFile(fileData);
+        await activeStorage.createFile(fileData);
       }
       
       res.json({ message: "Scan completed", fileCount: files.length });
@@ -237,27 +243,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   app.get("/api/system/status", async (req: Request, res: Response) => {
-    const user = await storage.getUserByUsername("pinky");
+    const user = await activeStorage.getUserByUsername("pinky");
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
     
     try {
       // Get all integrations
-      const integrations = await storage.getIntegrations(user.id);
+      const integrations = await activeStorage.getIntegrations(user.id);
       
       // Get file counts by source
-      const local = await storage.getFilesBySource(user.id, "local");
-      const gdrive = await storage.getFilesBySource(user.id, "google_drive");
-      const dropbox = await storage.getFilesBySource(user.id, "dropbox");
-      const notion = await storage.getFilesBySource(user.id, "notion");
+      const local = await activeStorage.getFilesBySource(user.id, "local");
+      const gdrive = await activeStorage.getFilesBySource(user.id, "google_drive");
+      const dropbox = await activeStorage.getFilesBySource(user.id, "dropbox");
+      const notion = await activeStorage.getFilesBySource(user.id, "notion");
       
       // Get total processed files
-      const allFiles = await storage.getFiles(user.id);
+      const allFiles = await activeStorage.getFiles(user.id);
       const processedFiles = allFiles.filter(file => file.isProcessed);
       
       // Get file stats by category
-      const fileStats = await storage.getFileStats(user.id);
+      const fileStats = await activeStorage.getFileStats(user.id);
       
       res.json({
         sources: {

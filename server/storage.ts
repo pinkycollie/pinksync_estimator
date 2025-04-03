@@ -5,6 +5,14 @@ import {
   Recommendation, InsertRecommendation
 } from "@shared/schema";
 
+// Re-export types for use in other files
+export type { 
+  User, InsertUser, 
+  File, InsertFile, 
+  Integration, InsertIntegration, 
+  Recommendation, InsertRecommendation 
+};
+
 export interface IStorage {
   // User methods
   getUser(id: number): Promise<User | undefined>;
