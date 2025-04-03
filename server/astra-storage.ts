@@ -10,14 +10,24 @@ import {
 } from "@shared/schema";
 
 // Astra DB configuration
-// The Astra DB endpoint is the full URL to your database
-const ASTRA_DB_ENDPOINT = "https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com";
-const ASTRA_DB_TOKEN = process.env.ASTRA_DB_TOKEN || "";
-const ASTRA_DB_NAMESPACE = "default_keyspace"; // Namespace/keyspace name
+// The database ID is directly from the URL
+const ASTRA_DB_ID = "2ba73933-3d26-47d9-a6f8-69b4f93a4611";
+const ASTRA_DB_REGION = "us-east-2"; 
+const ASTRA_DB_KEYSPACE = "default_keyspace";
 
-// Check token format
+// Get the token and ensure proper format (AstraCS should be uppercase)
+let rawToken = process.env.ASTRA_DB_TOKEN || "";
+
+// Fix token format if needed (replace "astracs:" with "AstraCS:")
+const ASTRA_DB_TOKEN = rawToken.replace(/^astracs:/i, "AstraCS:");
+
+// Note: For this SDK, we should NOT use the full URL when calling .db()
+// We'll keep this for logging purposes only
+const ASTRA_DB_ENDPOINT = `https://${ASTRA_DB_ID}-${ASTRA_DB_REGION}.apps.astra.datastax.com`;
+
+// Log token format check
 if (ASTRA_DB_TOKEN && !ASTRA_DB_TOKEN.startsWith("AstraCS:")) {
-  console.warn("Warning: ASTRA_DB_TOKEN should start with 'AstraCS:'");
+  console.warn("Warning: ASTRA_DB_TOKEN should start with 'AstraCS:' for proper authentication");
 }
 
 // Check if token is available at startup
@@ -52,36 +62,47 @@ export class AstraStorage implements IStorage {
 
       try {
         // Parse the endpoint to extract the DB ID and region
-        // Parse the ID from the endpoint URL: https://2ba73933-3d26-47d9-a6f8-69b4f93a4611-us-east-2.apps.astra.datastax.com
-        // We need just the ID part: 2ba73933-3d26-47d9-a6f8-69b4f93a4611
-        const urlParts = ASTRA_DB_ENDPOINT.split('.');
-        const hostPart = urlParts[0].split('//')[1];
-        const databaseId = hostPart.split('-us-')[0];
+        // According to the Astra DB docs, we should use the full endpoint URL
+        console.log(`Connecting to Astra DB using endpoint: ${ASTRA_DB_ENDPOINT}`);
         
-        console.log(`Connecting to Astra DB with ID: ${databaseId}`);
+        // Trace the token format being used 
+        const tokenDebugInfo = ASTRA_DB_TOKEN
+          ? `Token format: starts with "${ASTRA_DB_TOKEN.substring(0, 8)}...", length: ${ASTRA_DB_TOKEN.length}`
+          : "Token is empty";
+        console.log(tokenDebugInfo);
         
-        // Check that the token has the proper format (should start with "AstraCS:")
-        if (!ASTRA_DB_TOKEN.startsWith('AstraCS:')) {
-          console.warn('ASTRA_DB_TOKEN does not start with "AstraCS:" - this may cause authentication issues');
-        }
-        
-        // Initialize client using the new TypeScript SDK
+        // Initialize client using the new TypeScript SDK with DataAPIClient
         this.client = new DataAPIClient(ASTRA_DB_TOKEN);
         
-        // Set up the database client with just the ID
-        this.db = this.client.db(databaseId);
-        console.log(`Using database ID: ${databaseId}`);
+        // The SDK has two signatures we can use:
+        // 1. .db(endpoint, options?)
+        // 2. .db(id, region, options?)
+        try {
+          // Use method overload with id and region separately
+          this.db = this.client.db(ASTRA_DB_ID, ASTRA_DB_REGION, { keyspace: ASTRA_DB_KEYSPACE });
+          console.log(`Database client initialized with ID: ${ASTRA_DB_ID}, region: ${ASTRA_DB_REGION}, keyspace: ${ASTRA_DB_KEYSPACE}`);
+        } catch (dbInitError) {
+          console.error("Error initializing DB client:", dbInitError);
+          throw dbInitError;
+        }
+        
+        // For debugging - log the structure of token parts
+        if (ASTRA_DB_TOKEN) {
+          const tokenParts = ASTRA_DB_TOKEN.split(':');
+          console.log(`Token parts: ${tokenParts.length}, first part: "${tokenParts[0]}"`);
+        }
         
         console.log("Astra client created successfully");
 
-        // Create or get collections - note that the namespace should already exist
-        // We will skip namespace creation as it should be created in the Astra DB console
-        this.usersCollection = this.db.collection(ASTRA_DB_NAMESPACE, "users");
-        this.filesCollection = this.db.collection(ASTRA_DB_NAMESPACE, "files");
-        this.integrationsCollection = this.db.collection(ASTRA_DB_NAMESPACE, "integrations");
-        this.recommendationsCollection = this.db.collection(ASTRA_DB_NAMESPACE, "recommendations");
+        // Create or get collections - note that the keyspace should already exist
+        // For the new SDK, you don't specify the keyspace in the collection call
+        // It's already set at the database level
+        this.usersCollection = this.db.collection("users");
+        this.filesCollection = this.db.collection("files");
+        this.integrationsCollection = this.db.collection("integrations");
+        this.recommendationsCollection = this.db.collection("recommendations");
         
-        console.log("Created collection references for:", ASTRA_DB_NAMESPACE);
+        console.log("Created collection references using KeySpace:", ASTRA_DB_KEYSPACE);
         
         // Test the connection with a simple findOne operation
         try {
