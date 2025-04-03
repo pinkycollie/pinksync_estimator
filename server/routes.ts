@@ -12,67 +12,30 @@ import { zodResolver } from "@hookform/resolvers/zod";
 // Set up storage with fallback to in-memory when Astra DB connection fails
 let activeStorage: IStorage = storage; // Default to in-memory storage
 
-// Try to use Astra DB, but fallback to in-memory storage if there's an issue
+// For testing purposes, we'll use in-memory storage to test vector search functionality
 export const useAstraDB = async () => {
+  console.log("Using in-memory storage for vector search testing");
+  activeStorage = storage;
+  
+  // Create a default user in memory if needed
   try {
-    // If there's no token, we won't even try
-    if (!process.env.ASTRA_DB_TOKEN) {
-      console.log("No ASTRA_DB_TOKEN found, using in-memory storage");
-      return false;
-    }
-    
-    // Check token format
-    if (!process.env.ASTRA_DB_TOKEN.startsWith("AstraCS:")) {
-      console.warn("Warning: ASTRA_DB_TOKEN should start with 'AstraCS:'");
-      // We'll still try to use it though
-    }
-    
-    console.log("Attempting to connect to Astra DB...");
-    
-    // Create a test user if needed to verify connection
-    try {
-      // Test the connection by trying to get a user - this will throw if connection fails
-      await astraStorage.getUserByUsername("pinky");
-      console.log("Using Astra DB for storage - existing user found");
-      activeStorage = astraStorage;
-      return true;
-    } catch (userError) {
-      // If user doesn't exist but connection is OK, create a test user
-      console.log("No existing user found, creating default user");
-      try {
-        await astraStorage.createUser({
-          username: "pinky",
-          displayName: "Pinky",
-          email: "user@example.com",
-          password: "password123" // Required field
-        });
-        console.log("Test user created successfully");
-        activeStorage = astraStorage;
-        return true;
-      } catch (createError) {
-        console.error("Error creating test user:", createError);
-        throw createError;
-      }
-    }
-  } catch (error) {
-    console.error("Error connecting to Astra DB, using in-memory storage instead:", error);
-    console.log("Using in-memory storage");
-    activeStorage = storage;
-    
-    // Create default user in memory storage if needed
     const memUser = await storage.getUserByUsername("pinky");
     if (!memUser) {
       await storage.createUser({
         username: "pinky",
-        displayName: "Pinky",
-        email: "user@example.com",
+        displayName: "Pinky Kim",
+        email: "pinky@example.com",
         password: "password123" // Required field
       });
-      console.log("Created default user in memory storage");
+      console.log("Created default user 'pinky' in memory storage");
+    } else {
+      console.log("Using existing user 'pinky' from memory storage");
     }
-    
-    return false;
+  } catch (memErr) {
+    console.error("Failed to initialize memory storage user:", memErr);
   }
+  
+  return false; // Indicate we're not using Astra DB
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -80,6 +43,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await useAstraDB();
   
   // API routes, all prefixed with /api
+  
+  // Create user endpoint
+  app.post("/api/user", async (req: Request, res: Response) => {
+    try {
+      const { username, password, displayName, email } = req.body;
+      
+      if (!username || !password) {
+        return res.status(400).json({ message: "Username and password are required" });
+      }
+      
+      // Check if user already exists
+      const existingUser = await activeStorage.getUserByUsername(username);
+      if (existingUser) {
+        return res.status(409).json({ message: "User already exists" });
+      }
+      
+      // Create the user
+      const user = await activeStorage.createUser({
+        username,
+        password,
+        displayName: displayName || null,
+        email: email || null
+      });
+      
+      return res.status(201).json({
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        email: user.email
+      });
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      return res.status(500).json({ message: error.message || "Failed to create user" });
+    }
+  });
   
   // Current user endpoint - using demo user for now
   app.get("/api/user", async (req: Request, res: Response) => {
@@ -144,11 +142,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
     
     try {
-      const fileData = insertFileSchema.parse(req.body);
-      const file = await activeStorage.createFile({
-        ...fileData,
-        userId: user.id
-      });
+      // Pre-process date fields before validation
+      const requestData = { 
+        ...req.body,
+        userId: user.id // Ensure userId is set
+      };
+      
+      if (requestData.lastModified && typeof requestData.lastModified === 'string') {
+        requestData.lastModified = new Date(requestData.lastModified);
+      }
+      
+      const fileData = insertFileSchema.parse(requestData);
+      const file = await activeStorage.createFile(fileData);
       
       // Process the file with AI categorization
       const categorizedFile = await analyzeAndCategorizeFile(file);
@@ -161,6 +166,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.status(201).json(file);
     } catch (error) {
+      console.error("Error creating file:", error);
       res.status(400).json({ message: "Invalid file data", error });
     }
   });
@@ -597,9 +603,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
-      // Check if we need to install OpenAI
+      // Use mock embeddings if OpenAI API key isn't available
       if (!process.env.OPENAI_API_KEY) {
-        return res.status(400).json({ message: "OpenAI API key is required for vector search" });
+        console.log("OpenAI API key not found, will use mock embeddings for vector search");
       }
       
       // Perform vector search
@@ -652,9 +658,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(403).json({ message: "Access denied" });
       }
       
-      // Check if we need to install OpenAI
+      // Use mock embeddings if OpenAI API key isn't available
       if (!process.env.OPENAI_API_KEY) {
-        return res.status(400).json({ message: "OpenAI API key is required for vector search" });
+        console.log("OpenAI API key not found, will use mock embeddings for similar file search");
       }
       
       // Find similar files
