@@ -15,18 +15,18 @@ const ANYTYPE_API_BASE_URL = 'https://api.anytype.io/api/v1';
  * Anytype API client
  */
 export class AnytypeClient {
-  private apiKey: string;
+  private vaultKey: string;
   private apiEndpoint: string;
   private userId: string;
   private workspaceId?: string;
   
   constructor(config: {
-    apiKey: string;
+    vaultKey: string;
     apiEndpoint?: string;
     userId: string;
     workspaceId?: string;
   }) {
-    this.apiKey = config.apiKey;
+    this.vaultKey = config.vaultKey;
     this.apiEndpoint = config.apiEndpoint || ANYTYPE_API_BASE_URL;
     this.userId = config.userId;
     this.workspaceId = config.workspaceId;
@@ -44,7 +44,7 @@ export class AnytypeClient {
     
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.apiKey}`,
+      'X-Anytype-Vault-Key': this.vaultKey,
       'X-Anytype-User-ID': this.userId
     };
     
@@ -208,12 +208,12 @@ export function createAnytypeClientFromIntegration(integration: Integration): An
   
   const config = integration.config as any;
   
-  if (!config.apiKey || !config.userId) {
-    throw new Error('Missing required Anytype configuration (apiKey, userId)');
+  if (!config.vaultKey || !config.userId) {
+    throw new Error('Missing required Anytype configuration (vaultKey, userId)');
   }
   
   return new AnytypeClient({
-    apiKey: config.apiKey,
+    vaultKey: config.vaultKey,
     apiEndpoint: config.apiEndpoint,
     userId: config.userId,
     workspaceId: config.workspaceId
