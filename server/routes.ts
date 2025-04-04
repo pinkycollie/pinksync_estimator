@@ -11,6 +11,8 @@ import { scanLocalFiles, scanGoogleDriveFiles } from "./utils/fileUtils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import filesRouter from "./routes/files";
 import oauthRouter from "./routes/oauth";
+import chatHistoryRouter from "./routes/chatHistory";
+import entrepreneurRouter from "./routes/entrepreneur";
 
 // Set up storage with fallback to in-memory when Astra DB connection fails
 let activeStorage: IStorage = storage; // Default to in-memory storage
@@ -70,6 +72,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Mount modular route handlers
   app.use('/api/files', filesRouter);
   app.use('/api/oauth', oauthRouter);
+  app.use('/api/chat-history', chatHistoryRouter);
+  app.use('/api/entrepreneur', entrepreneurRouter);
   
   // Create user endpoint
   app.post("/api/user", async (req: Request, res: Response) => {
@@ -477,6 +481,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     
     const { integrationId } = req.params;
     const result = await activeStorage.synchronizeWindows(user.id, parseInt(integrationId));
+    res.json(result);
+  });
+  
+  app.post("/api/sync/anytype/:integrationId", async (req: Request, res: Response) => {
+    const user = await activeStorage.getUserByUsername("pinky");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    const { integrationId } = req.params;
+    const result = await activeStorage.synchronizeAnytype(user.id, parseInt(integrationId));
     res.json(result);
   });
 
