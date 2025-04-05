@@ -9,6 +9,9 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   email: text("email"),
   displayName: text("display_name"),
+  preferences: jsonb("preferences"), // User preferences for UI and system behavior
+  defaultWorkspaces: jsonb("default_workspaces"), // Default workspace paths for different devices
+  onboardingCompleted: boolean("onboarding_completed").default(false), // Whether the user has completed onboarding
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -218,6 +221,25 @@ export const insertCodeSourceSchema = createInsertSchema(codeSources).omit({
   id: true,
 });
 
+// User Categorization Preferences
+export const userCategorizationPrefs = pgTable('user_categorization_prefs', {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  categoryType: text("category_type").notNull(), // e.g., 'device_type', 'file_type', 'project', 'workflow'
+  categoryName: text("category_name").notNull(), // The name of this specific category 
+  isActive: boolean("is_active").default(true),
+  priority: integer("priority").default(5),
+  filePatterns: text("file_patterns"), // File patterns that match this category
+  folderPatterns: text("folder_patterns"), // Folder patterns that match this category
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  metadata: jsonb("metadata"), // Additional configuration
+});
+
+export const insertUserCategorizationPrefSchema = createInsertSchema(userCategorizationPrefs).omit({
+  id: true,
+});
+
 // File Watch configuration
 export const fileWatchConfigs = pgTable('file_watch_configs', {
   id: serial("id").primaryKey(),
@@ -312,6 +334,9 @@ export type InsertProjectMilestone = z.infer<typeof insertProjectMilestoneSchema
 
 export type CodeSource = typeof codeSources.$inferSelect;
 export type InsertCodeSource = z.infer<typeof insertCodeSourceSchema>;
+
+export type UserCategorizationPref = typeof userCategorizationPrefs.$inferSelect;
+export type InsertUserCategorizationPref = z.infer<typeof insertUserCategorizationPrefSchema>;
 
 export type FileWatchConfig = typeof fileWatchConfigs.$inferSelect;
 export type InsertFileWatchConfig = z.infer<typeof insertFileWatchConfigSchema>;

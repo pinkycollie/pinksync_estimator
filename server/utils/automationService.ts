@@ -6,7 +6,7 @@ import { storage } from '../storage';
 import { 
   TriggerType, 
   WorkflowStepType, 
-  WorkflowExecutionStatus,
+  WorkflowStatus,
   AutomationWorkflow,
   ScheduleConfig
 } from '@shared/schema';
@@ -319,14 +319,10 @@ class AutomationService {
       const execution = await storage.createWorkflowExecution({
         workflowId,
         userId: context.userId,
-        status: WorkflowExecutionStatus.RUNNING,
-        startedAt: new Date(),
-        source: context.source,
-        executionData: JSON.stringify({
-          context,
-          steps: [],
-          outputs: {}
-        })
+        status: WorkflowStatus.RUNNING,
+        startTime: new Date(),
+        triggerSource: context.source,
+        triggerData: context.data
       });
       
       const executionId = execution.id;
@@ -336,9 +332,9 @@ class AutomationService {
       
       if (steps.length === 0) {
         await storage.updateWorkflowExecution(executionId, {
-          status: WorkflowExecutionStatus.COMPLETED,
-          completedAt: new Date(),
-          executionData: JSON.stringify({
+          status: WorkflowStatus.COMPLETED,
+          endTime: new Date(),
+          logs: JSON.stringify({
             context,
             steps: [],
             outputs: {},
@@ -404,9 +400,9 @@ class AutomationService {
             allStepsSuccessful = false;
             
             await storage.updateWorkflowExecution(executionId, {
-              status: WorkflowExecutionStatus.FAILED,
-              completedAt: new Date(),
-              executionData: JSON.stringify({
+              status: WorkflowStatus.FAILED,
+              endTime: new Date(),
+              logs: JSON.stringify({
                 ...executionData,
                 result: {
                   success: false,
@@ -428,9 +424,9 @@ class AutomationService {
           allStepsSuccessful = false;
           
           await storage.updateWorkflowExecution(executionId, {
-            status: WorkflowExecutionStatus.FAILED,
-            completedAt: new Date(),
-            executionData: JSON.stringify({
+            status: WorkflowStatus.FAILED,
+            endTime: new Date(),
+            logs: JSON.stringify({
               ...executionData,
               result: {
                 success: false,
@@ -450,9 +446,9 @@ class AutomationService {
       // All steps completed successfully
       if (allStepsSuccessful) {
         await storage.updateWorkflowExecution(executionId, {
-          status: WorkflowExecutionStatus.COMPLETED,
-          completedAt: new Date(),
-          executionData: JSON.stringify({
+          status: WorkflowStatus.COMPLETED,
+          endTime: new Date(),
+          logs: JSON.stringify({
             ...executionData,
             result: {
               success: true,
@@ -478,9 +474,9 @@ class AutomationService {
         
         if (executions) {
           await storage.updateWorkflowExecution(executions.id, {
-            status: WorkflowExecutionStatus.FAILED,
-            completedAt: new Date(),
-            executionData: JSON.stringify({
+            status: WorkflowStatus.FAILED,
+            endTime: new Date(),
+            logs: JSON.stringify({
               context,
               result: {
                 success: false,
