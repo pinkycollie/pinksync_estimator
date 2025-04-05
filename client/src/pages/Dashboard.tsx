@@ -8,6 +8,7 @@ import AIRecommendations from '@/components/dashboard/AIRecommendations';
 import RecentFiles from '@/components/dashboard/RecentFiles';
 import Integrations from '@/components/dashboard/Integrations';
 import EntrepreneurIdeas from '@/components/dashboard/EntrepreneurIdeas';
+import ProjectPipeline from '@/components/dashboard/ProjectPipeline';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ export default function Dashboard() {
     queryClient.prefetchQuery({ queryKey: ['/api/recommendations', { active: true }] });
     queryClient.prefetchQuery({ queryKey: ['/api/integrations'] });
     queryClient.prefetchQuery({ queryKey: ['/api/entrepreneur/ideas'] });
+    queryClient.prefetchQuery({ queryKey: ['/api/entrepreneur/projects'] });
   }, []);
   
   // Get authenticated user data
@@ -130,6 +132,9 @@ export default function Dashboard() {
               <AIRecommendations />
             </div>
           </div>
+          
+          {/* Project Pipeline */}
+          <ProjectPipeline />
           
           {/* Entrepreneur Ideas */}
           <EntrepreneurIdeas />

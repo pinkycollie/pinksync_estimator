@@ -742,6 +742,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ message: error.message || "Failed to find similar files" });
     }
   });
+  
+  // Ngrok status endpoint - this is separate from the /api/system/ngrok-status endpoint
+  // that is registered in ngrokService.ts
+  app.get("/api/system/ngrok", async (_req, res) => {
+    try {
+      res.json({
+        active: !!app.locals.ngrokUrl,
+        url: app.locals.ngrokUrl || null,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        message: "Error checking ngrok status",
+        error: error?.message || String(error)
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

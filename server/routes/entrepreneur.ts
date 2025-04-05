@@ -1,25 +1,11 @@
 import { Router, Request, Response } from "express";
 import { isAuthenticated } from "../replitAuth";
 import { insertEntrepreneurIdeaSchema, insertIdeaVersionSchema, insertProjectPlanSchema, insertProjectMilestoneSchema, insertCodeSourceSchema } from "@shared/schema";
-import { replitStorage } from "../replit-storage";
 import type { IStorage } from "../storage";
 import { storage } from "../storage";
 
-// Set up storage with fallback to in-memory when Replit DB connection fails
+// Use storage from main module, which is the PostgreSQL database implementation
 let activeStorage: IStorage = storage;
-
-// Try to use Replit Database storage, fallback to in-memory if it fails
-export const useActiveStorage = async () => {
-  try {
-    // Test query to verify connection
-    await replitStorage.getUser(1);
-    activeStorage = replitStorage;
-    return true;
-  } catch (error) {
-    activeStorage = storage;
-    return false;
-  }
-};
 
 // Initialize router
 const router = Router();
