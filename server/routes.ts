@@ -1,9 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { storage, memStorage, dbStorage, MemStorage } from "./storage";
+import { storage, memStorage } from "./storage";
 import type { IStorage } from "./storage"; 
-// Import removed - no longer using Replit storage
-// Import removed - no longer using Astra storage
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { z } from "zod";
 import { insertFileSchema, insertIntegrationSchema, insertRecommendationSchema, type InsertFile, type File } from "@shared/schema";
@@ -14,9 +12,11 @@ import filesRouter from "./routes/files";
 import oauthRouter from "./routes/oauth";
 import chatHistoryRouter from "./routes/chatHistory";
 import entrepreneurRouter from "./routes/entrepreneur";
+import pipelineRouter from "./routes/pipeline";
+import automationRouter from "./routes/automation";
 
 // Set up storage with PostgreSQL by default, with fallbacks
-let activeStorage: IStorage = storage; // This is dbStorage by default
+let activeStorage: IStorage = storage; // PostgreSQL database storage by default
 
 /**
  * Utility to attempt to use PostgreSQL Database storage
@@ -27,11 +27,15 @@ const usePostgresStorage = async (): Promise<boolean> => {
     
     // Try to see if we can use PostgreSQL Database
     if (process.env.DATABASE_URL) {
-      // Test query to verify connection
-      await dbStorage.getUser(1);
-      activeStorage = dbStorage;
-      console.log("Successfully connected to PostgreSQL Database");
-      return true;
+      try {
+        // Test query to verify connection
+        await storage.getUser(1);
+        console.log("Successfully connected to PostgreSQL Database");
+        return true;
+      } catch (dbError) {
+        console.error("Error testing PostgreSQL connection:", dbError);
+        throw dbError;
+      }
     } else {
       console.log("DATABASE_URL not found, PostgreSQL not available");
     }
@@ -87,6 +91,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/oauth', oauthRouter);
   app.use('/api/chat-history', chatHistoryRouter);
   app.use('/api/entrepreneur', entrepreneurRouter);
+  app.use('/api/pipeline', pipelineRouter);
+  app.use('/api/automation', automationRouter);
+  
+  // Initialize automation services
+  console.log("Starting file monitoring and automation services...");
   
   // Create user endpoint
   app.post("/api/user", async (req: Request, res: Response) => {
@@ -385,7 +394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Check which database we're connected to
       let dbType = "In-memory";
-      if (activeStorage === dbStorage) {
+      if (process.env.DATABASE_URL) {
         dbType = "PostgreSQL";
       } else {
         dbType = "In-memory";
@@ -443,7 +452,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       // Check which database we're connected to
       let dbType = "In-memory";
-      if (activeStorage === dbStorage) {
+      if (process.env.DATABASE_URL) {
         dbType = "PostgreSQL";
       } else {
         dbType = "In-memory";

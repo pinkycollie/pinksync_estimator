@@ -218,6 +218,67 @@ export const insertCodeSourceSchema = createInsertSchema(codeSources).omit({
   id: true,
 });
 
+// File Watch configuration
+export const fileWatchConfigs = pgTable('file_watch_configs', {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(),
+  path: text("path").notNull(), // Path to watch
+  isRecursive: boolean("is_recursive").default(true), // Watch subdirectories
+  filePatterns: text("file_patterns"), // File glob patterns to watch, comma-separated
+  ignorePatterns: text("ignore_patterns"), // Patterns to ignore, comma-separated
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  lastRunAt: timestamp("last_run_at"),
+  watchConfig: jsonb("watch_config"), // Additional configuration
+});
+
+export const insertFileWatchConfigSchema = createInsertSchema(fileWatchConfigs).omit({
+  id: true,
+});
+
+// Automation Workflow schema
+export const automationWorkflows = pgTable('automation_workflows', {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  name: text("name").notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  triggerType: text("trigger_type").notNull(), // file_change, schedule, manual, api
+  triggerConfig: jsonb("trigger_config"), // Configuration for the trigger
+  steps: jsonb("steps").notNull(), // Array of workflow steps to execute
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  lastRunAt: timestamp("last_run_at"),
+  executionCount: integer("execution_count").default(0),
+  averageExecutionTime: integer("average_execution_time"), // in milliseconds
+});
+
+export const insertAutomationWorkflowSchema = createInsertSchema(automationWorkflows).omit({
+  id: true,
+});
+
+// Workflow Execution History
+export const workflowExecutions = pgTable('workflow_executions', {
+  id: serial("id").primaryKey(),
+  workflowId: integer("workflow_id").notNull(),
+  userId: integer("user_id").notNull(),
+  startTime: timestamp("start_time").notNull().defaultNow(),
+  endTime: timestamp("end_time"),
+  status: text("status").notNull(), // pending, running, completed, failed, cancelled
+  result: jsonb("result"), // Result of the workflow execution
+  logs: jsonb("logs"), // Logs from the workflow execution
+  error: text("error"), // Error message if the workflow failed
+  executionTime: integer("execution_time"), // in milliseconds
+  triggerSource: text("trigger_source"), // What triggered this execution
+  triggerData: jsonb("trigger_data"), // Data that triggered the workflow
+});
+
+export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutions).omit({
+  id: true,
+});
+
 // Export types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -251,6 +312,15 @@ export type InsertProjectMilestone = z.infer<typeof insertProjectMilestoneSchema
 
 export type CodeSource = typeof codeSources.$inferSelect;
 export type InsertCodeSource = z.infer<typeof insertCodeSourceSchema>;
+
+export type FileWatchConfig = typeof fileWatchConfigs.$inferSelect;
+export type InsertFileWatchConfig = z.infer<typeof insertFileWatchConfigSchema>;
+
+export type AutomationWorkflow = typeof automationWorkflows.$inferSelect;
+export type InsertAutomationWorkflow = z.infer<typeof insertAutomationWorkflowSchema>;
+
+export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
+export type InsertWorkflowExecution = z.infer<typeof insertWorkflowExecutionSchema>;
 
 // File category enum for reference
 export enum FileCategory {
@@ -326,4 +396,64 @@ export enum MilestoneStatus {
   IN_PROGRESS = "in_progress",
   COMPLETED = "completed",
   DELAYED = "delayed",
+}
+
+// File event type enum for reference
+export enum FileEventType {
+  ADDED = "added",
+  MODIFIED = "modified",
+  DELETED = "deleted",
+  RENAMED = "renamed",
+}
+
+// Trigger type enum for reference
+export enum TriggerType {
+  FILE_EVENT = "file_event",
+  SCHEDULE = "schedule",
+  MANUAL = "manual",
+  API = "api",
+  INTEGRATION_EVENT = "integration_event",
+}
+
+// Workflow status enum for reference
+export enum WorkflowStatus {
+  PENDING = "pending",
+  RUNNING = "running",
+  COMPLETED = "completed",
+  FAILED = "failed",
+  CANCELLED = "cancelled",
+}
+
+// Workflow step type enum for reference
+export enum WorkflowStepType {
+  FILE_OPERATION = "file_operation",
+  DATA_TRANSFORM = "data_transform",
+  API_REQUEST = "api_request",
+  AI_PROCESSING = "ai_processing",
+  NOTIFICATION = "notification",
+  PIPELINE = "pipeline",
+  SCRIPT = "script",
+  CODE_SNIPPET = "code_snippet",
+}
+
+// Schedule configuration type
+export interface ScheduleConfig {
+  schedule: string; // cron expression
+  timezone?: string;
+  description?: string;
+}
+
+// File event configuration type
+export interface FileEventConfig {
+  pathPattern?: string;
+  eventTypes?: FileEventType[];
+  fileExtensions?: string[];
+  description?: string;
+}
+
+// Integration event configuration type
+export interface IntegrationEventConfig {
+  integrationType?: string;
+  eventTypes?: string[];
+  description?: string;
 }

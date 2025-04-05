@@ -43,11 +43,17 @@ interface NgrokApiResponse {
 
 /**
  * Gets the active ngrok tunnel URL
- * @returns The public URL of the active ngrok tunnel or null if not found
+ * @returns The public URL of the active ngrok tunnel or a hardcoded endpoint
  */
 export async function getNgrokUrl(): Promise<string | null> {
   try {
-    // Connect to ngrok API (assuming ngrok is running locally with Web UI)
+    // Use the provided ngrok endpoint
+    const hardcodedEndpoint = "https://ep_2vKPm5WkHYM0ch5b8B2IPsKpzz1.ngrok-free.app";
+    console.log('Using configured ngrok endpoint:', hardcodedEndpoint);
+    return hardcodedEndpoint;
+    
+    // Previous implementation - connecting to local ngrok API
+    /* 
     const response = await fetch('http://localhost:4040/api/tunnels');
     
     if (!response.ok) {
@@ -73,8 +79,9 @@ export async function getNgrokUrl(): Promise<string | null> {
     
     console.error('No active ngrok tunnels found');
     return null;
+    */
   } catch (error) {
-    console.error('Error connecting to ngrok:', error);
+    console.error('Error with ngrok endpoint:', error);
     return null;
   }
 }
@@ -89,22 +96,22 @@ export async function getNgrokStatus() {
     if (!publicUrl) {
       return {
         active: false,
-        message: "Ngrok tunnel not detected. Make sure ngrok is running with 'ngrok http 3000'",
-        webInterface: "http://localhost:4040"
+        message: "Ngrok endpoint not available. Please check the configuration.",
+        webInterface: "N/A"
       };
     }
     
     return {
       active: true,
       url: publicUrl,
-      webInterface: "http://localhost:4040",
-      message: "Ngrok tunnel active"
+      webInterface: "N/A",
+      message: "Using configured ngrok endpoint"
     };
   } catch (error: any) {
     return {
       active: false,
       message: `Error checking ngrok status: ${error?.message || 'Unknown error'}`,
-      webInterface: "http://localhost:4040"
+      webInterface: "N/A"
     };
   }
 }

@@ -3,24 +3,16 @@ import { upload, handleUploadErrors, parseJsonFile, cleanupTempFile, detectFileT
 import { importChatGPTExport, importClaudeExport } from "../utils/chatImportUtils";
 import { isAuthenticated } from "../replitAuth";
 import { insertAiChatHistorySchema, insertAiChatMessageSchema } from "@shared/schema";
-import { replitStorage } from "../replit-storage";
 import type { IStorage } from "../storage";
 import { storage } from "../storage";
 
-// Set up storage with fallback to in-memory when Replit DB connection fails
+// Always use PostgreSQL storage
 let activeStorage: IStorage = storage;
 
-// Try to use Replit Database storage, fallback to in-memory if it fails
+// Placeholder function that always returns the PostgreSQL storage
 export const useActiveStorage = async () => {
-  try {
-    // Test query to verify connection
-    await replitStorage.getUser(1);
-    activeStorage = replitStorage;
-    return true;
-  } catch (error) {
-    activeStorage = storage;
-    return false;
-  }
+  activeStorage = storage;
+  return true;
 };
 
 // Initialize router

@@ -11,13 +11,19 @@ import {
   ProjectPlan, InsertProjectPlan,
   ProjectMilestone, InsertProjectMilestone,
   CodeSource, InsertCodeSource,
+  // File monitoring and workflow automation
+  FileWatchConfig, InsertFileWatchConfig,
+  AutomationWorkflow, InsertAutomationWorkflow,
+  WorkflowExecution, InsertWorkflowExecution,
   // Enums
   AiPlatform, FileCategory, FileSource, 
   IntegrationType, RecommendationType,
-  IdeaStatus, ProjectStatus, MilestoneStatus
+  IdeaStatus, ProjectStatus, MilestoneStatus,
+  TriggerType, WorkflowStatus, WorkflowStepType
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import { DatabaseStorage } from './database-storage';
 
 const MemoryStore = createMemoryStore(session);
 
@@ -34,7 +40,11 @@ export type {
   IdeaVersion, InsertIdeaVersion,
   ProjectPlan, InsertProjectPlan,
   ProjectMilestone, InsertProjectMilestone,
-  CodeSource, InsertCodeSource
+  CodeSource, InsertCodeSource,
+  // File monitoring and workflow automation
+  FileWatchConfig, InsertFileWatchConfig,
+  AutomationWorkflow, InsertAutomationWorkflow,
+  WorkflowExecution, InsertWorkflowExecution
 };
 
 export interface IStorage {
@@ -88,6 +98,30 @@ export interface IStorage {
   getIOSFiles(userId: number): Promise<File[]>;
   getUbuntuFiles(userId: number): Promise<File[]>;
   getWindowsFiles(userId: number): Promise<File[]>;
+  
+  // File Watch Config methods
+  getFileWatchConfigs(userId: number): Promise<FileWatchConfig[]>;
+  getActiveFileWatchConfigs(userId: number): Promise<FileWatchConfig[]>;
+  getFileWatchConfig(id: number): Promise<FileWatchConfig | undefined>;
+  createFileWatchConfig(config: InsertFileWatchConfig): Promise<FileWatchConfig>;
+  updateFileWatchConfig(id: number, config: Partial<InsertFileWatchConfig>): Promise<FileWatchConfig | undefined>;
+  deleteFileWatchConfig(id: number): Promise<boolean>;
+  
+  // Automation Workflow methods
+  getAutomationWorkflows(userId: number): Promise<AutomationWorkflow[]>;
+  getActiveAutomationWorkflows(userId: number): Promise<AutomationWorkflow[]>;
+  getAutomationWorkflowsByTriggerType(userId: number, triggerType: TriggerType): Promise<AutomationWorkflow[]>;
+  getAutomationWorkflow(id: number): Promise<AutomationWorkflow | undefined>;
+  createAutomationWorkflow(workflow: InsertAutomationWorkflow): Promise<AutomationWorkflow>;
+  updateAutomationWorkflow(id: number, workflow: Partial<InsertAutomationWorkflow>): Promise<AutomationWorkflow | undefined>;
+  deleteAutomationWorkflow(id: number): Promise<boolean>;
+  
+  // Workflow Execution methods
+  getWorkflowExecutions(workflowId: number): Promise<WorkflowExecution[]>;
+  getRecentWorkflowExecutions(userId: number, limit?: number): Promise<WorkflowExecution[]>;
+  getWorkflowExecution(id: number): Promise<WorkflowExecution | undefined>;
+  createWorkflowExecution(execution: InsertWorkflowExecution): Promise<WorkflowExecution>;
+  updateWorkflowExecution(id: number, execution: Partial<InsertWorkflowExecution>): Promise<WorkflowExecution | undefined>;
   
   // Conflict resolution
   resolveFileConflicts(userId: number, fileIds: number[]): Promise<{ resolved: number; failed: number }>;
@@ -157,6 +191,30 @@ export interface IStorage {
   deleteCodeSource(id: number): Promise<boolean>;
   searchCodeSources(userId: number, query: string, limit?: number): Promise<CodeSource[]>;
   incrementCodeSourceUseCount(id: number): Promise<CodeSource | undefined>;
+  
+  // File Watch methods
+  getFileWatchConfigs(userId: number): Promise<FileWatchConfig[]>;
+  getActiveFileWatchConfigs(userId: number): Promise<FileWatchConfig[]>;
+  getFileWatchConfig(id: number): Promise<FileWatchConfig | undefined>;
+  createFileWatchConfig(config: InsertFileWatchConfig): Promise<FileWatchConfig>;
+  updateFileWatchConfig(id: number, config: Partial<InsertFileWatchConfig>): Promise<FileWatchConfig | undefined>;
+  deleteFileWatchConfig(id: number): Promise<boolean>;
+  
+  // Automation Workflow methods
+  getAutomationWorkflows(userId: number): Promise<AutomationWorkflow[]>;
+  getActiveAutomationWorkflows(userId: number): Promise<AutomationWorkflow[]>;
+  getAutomationWorkflowsByTriggerType(userId: number, triggerType: string): Promise<AutomationWorkflow[]>;
+  getAutomationWorkflow(id: number): Promise<AutomationWorkflow | undefined>;
+  createAutomationWorkflow(workflow: InsertAutomationWorkflow): Promise<AutomationWorkflow>;
+  updateAutomationWorkflow(id: number, workflow: Partial<InsertAutomationWorkflow>): Promise<AutomationWorkflow | undefined>;
+  deleteAutomationWorkflow(id: number): Promise<boolean>;
+  executeWorkflow(id: number, triggerData?: any): Promise<WorkflowExecution>;
+  
+  // Workflow Execution methods
+  getWorkflowExecutions(workflowId: number): Promise<WorkflowExecution[]>;
+  getRecentWorkflowExecutions(userId: number, limit?: number): Promise<WorkflowExecution[]>;
+  getWorkflowExecution(id: number): Promise<WorkflowExecution | undefined>;
+  updateWorkflowExecution(id: number, execution: Partial<InsertWorkflowExecution>): Promise<WorkflowExecution | undefined>;
 }
 
 export class MemStorage implements IStorage {
@@ -183,6 +241,12 @@ export class MemStorage implements IStorage {
   private projectIdCounter: number;
   private milestoneIdCounter: number;
   private codeSourceIdCounter: number;
+  private fileWatchConfigIdCounter: number;
+  private automationWorkflowIdCounter: number;
+  private workflowExecutionIdCounter: number;
+  private fileWatchConfigs: Map<number, FileWatchConfig>;
+  private automationWorkflows: Map<number, AutomationWorkflow>;
+  private workflowExecutions: Map<number, WorkflowExecution>;
 
   constructor() {
     // Initialize session store
@@ -202,6 +266,9 @@ export class MemStorage implements IStorage {
     this.projectPlans = new Map();
     this.projectMilestones = new Map();
     this.codeSources = new Map();
+    this.fileWatchConfigs = new Map();
+    this.automationWorkflows = new Map();
+    this.workflowExecutions = new Map();
     
     // Initialize ID counters
     this.userIdCounter = 1;
@@ -215,6 +282,49 @@ export class MemStorage implements IStorage {
     this.projectIdCounter = 1;
     this.milestoneIdCounter = 1;
     this.codeSourceIdCounter = 1;
+    this.fileWatchConfigIdCounter = 1;
+    this.automationWorkflowIdCounter = 1;
+    this.workflowExecutionIdCounter = 1;
+    
+    // Add sample file watch configurations
+    this.createFileWatchConfig({
+      name: "Documents Folder Watch",
+      path: "/home/user/documents",
+      userId: 1,
+      isActive: true,
+      isRecursive: true,
+      filePatterns: "*.docx,*.pdf,*.txt",
+      ignorePatterns: "*.tmp,*~"
+    });
+    
+    // Add sample automation workflow
+    this.createAutomationWorkflow({
+      name: "New Document Processing",
+      userId: 1,
+      description: "Process new documents when they are added",
+      triggerType: "FILE_CREATED",
+      triggerConfig: { watchId: 1, filePattern: "*.docx" },
+      steps: [
+        {
+          id: 1,
+          type: "NOTIFICATION",
+          name: "Send Notification",
+          config: { 
+            title: "New Document Added",
+            message: "A new document has been added to your documents folder"
+          }
+        },
+        {
+          id: 2,
+          type: "AI_SUMMARY",
+          name: "Generate Summary",
+          config: {
+            model: "gpt-4o",
+            prompt: "Summarize this document in 3 paragraphs"
+          }
+        }
+      ]
+    });
     
     // Initialize with sample user
     this.createUser({
@@ -1634,13 +1744,230 @@ export class MemStorage implements IStorage {
   async getCodeSourcesByLanguage(userId: number, language: string): Promise<CodeSource[]> {
     return (await this.getCodeSources(userId)).filter(code => code.language === language);
   }
+
+  // File Watch Configuration methods
+  async getFileWatchConfigs(userId: number): Promise<FileWatchConfig[]> {
+    return Array.from(this.fileWatchConfigs.values()).filter(
+      (config) => config.userId === userId
+    );
+  }
+
+  async getActiveFileWatchConfigs(userId: number): Promise<FileWatchConfig[]> {
+    return Array.from(this.fileWatchConfigs.values()).filter(
+      (config) => config.userId === userId && config.isActive
+    );
+  }
+
+  async getFileWatchConfig(id: number): Promise<FileWatchConfig | undefined> {
+    return this.fileWatchConfigs.get(id);
+  }
+
+  async createFileWatchConfig(insertConfig: InsertFileWatchConfig): Promise<FileWatchConfig> {
+    const id = this.fileWatchConfigIdCounter++;
+    const now = new Date();
+    
+    // Type-safe initialization
+    const config: FileWatchConfig = {
+      id,
+      name: insertConfig.name,
+      path: insertConfig.path,
+      userId: insertConfig.userId,
+      createdAt: now,
+      updatedAt: now,
+      isActive: insertConfig.isActive ?? true,
+      isRecursive: insertConfig.isRecursive ?? false,
+      filePatterns: insertConfig.filePatterns ?? null,
+      ignorePatterns: insertConfig.ignorePatterns ?? null,
+      lastRunAt: null,
+      watchConfig: insertConfig.watchConfig ?? null
+    };
+    
+    this.fileWatchConfigs.set(id, config);
+    return config;
+  }
+
+  async updateFileWatchConfig(id: number, updates: Partial<InsertFileWatchConfig>): Promise<FileWatchConfig | undefined> {
+    const existingConfig = this.fileWatchConfigs.get(id);
+    if (!existingConfig) return undefined;
+
+    const updatedConfig = { 
+      ...existingConfig, 
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    this.fileWatchConfigs.set(id, updatedConfig);
+    return updatedConfig;
+  }
+
+  async deleteFileWatchConfig(id: number): Promise<boolean> {
+    return this.fileWatchConfigs.delete(id);
+  }
+
+  // Automation Workflow methods
+  async getAutomationWorkflows(userId: number): Promise<AutomationWorkflow[]> {
+    return Array.from(this.automationWorkflows.values()).filter(
+      (workflow) => workflow.userId === userId
+    );
+  }
+
+  async getActiveAutomationWorkflows(userId: number): Promise<AutomationWorkflow[]> {
+    return Array.from(this.automationWorkflows.values()).filter(
+      (workflow) => workflow.userId === userId && workflow.isActive
+    );
+  }
+
+  async getAutomationWorkflowsByTriggerType(userId: number, triggerType: string): Promise<AutomationWorkflow[]> {
+    return Array.from(this.automationWorkflows.values()).filter(
+      (workflow) => workflow.userId === userId && workflow.triggerType === triggerType
+    );
+  }
+
+  async getAutomationWorkflow(id: number): Promise<AutomationWorkflow | undefined> {
+    return this.automationWorkflows.get(id);
+  }
+
+  async createAutomationWorkflow(insertWorkflow: InsertAutomationWorkflow): Promise<AutomationWorkflow> {
+    const id = this.automationWorkflowIdCounter++;
+    const now = new Date();
+    
+    // Type-safe initialization
+    const workflow: AutomationWorkflow = {
+      id,
+      name: insertWorkflow.name,
+      userId: insertWorkflow.userId,
+      description: insertWorkflow.description ?? null,
+      triggerType: insertWorkflow.triggerType,
+      triggerConfig: insertWorkflow.triggerConfig ?? null,
+      steps: insertWorkflow.steps ?? null,
+      createdAt: now,
+      updatedAt: now,
+      isActive: insertWorkflow.isActive ?? true,
+      lastRunAt: null,
+      executionCount: 0,
+      averageExecutionTime: null
+    };
+    
+    this.automationWorkflows.set(id, workflow);
+    return workflow;
+  }
+
+  async updateAutomationWorkflow(id: number, updates: Partial<InsertAutomationWorkflow>): Promise<AutomationWorkflow | undefined> {
+    const existingWorkflow = this.automationWorkflows.get(id);
+    if (!existingWorkflow) return undefined;
+
+    const updatedWorkflow = { 
+      ...existingWorkflow, 
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    this.automationWorkflows.set(id, updatedWorkflow);
+    return updatedWorkflow;
+  }
+
+  async deleteAutomationWorkflow(id: number): Promise<boolean> {
+    return this.automationWorkflows.delete(id);
+  }
+
+  async executeWorkflow(id: number, triggerData: any = {}): Promise<WorkflowExecution> {
+    const workflow = await this.getAutomationWorkflow(id);
+    if (!workflow) {
+      throw new Error(`Workflow with ID ${id} not found`);
+    }
+
+    // Create a new execution record
+    const execution = await this.createWorkflowExecution({
+      workflowId: id,
+      userId: workflow.userId,
+      status: "running",
+      startTime: new Date(),
+      triggerSource: "manual",
+      triggerData: triggerData
+    });
+
+    // In a real implementation, this would execute the workflow steps
+    // For this prototype, we'll simulate a successful execution
+    
+    // Update the workflow stats
+    await this.updateAutomationWorkflow(id, {
+      lastRunAt: new Date(),
+      executionCount: (workflow.executionCount || 0) + 1
+    });
+
+    // Mark the execution as complete with execution time
+    const executionTime = 1250; // milliseconds, simulated time
+    const completedExecution = await this.updateWorkflowExecution(execution.id, {
+      status: "completed",
+      endTime: new Date(),
+      result: { success: true, message: "Workflow executed successfully" },
+      executionTime: executionTime
+    });
+
+    return completedExecution!;
+  }
+  
+  // Workflow Execution methods
+  async getWorkflowExecutions(workflowId: number): Promise<WorkflowExecution[]> {
+    return Array.from(this.workflowExecutions.values()).filter(
+      (execution) => execution.workflowId === workflowId
+    );
+  }
+
+  async getRecentWorkflowExecutions(userId: number, limit: number = 10): Promise<WorkflowExecution[]> {
+    // First get all workflows for this user
+    const userWorkflows = await this.getAutomationWorkflows(userId);
+    const userWorkflowIds = new Set(userWorkflows.map(w => w.id));
+    
+    // Then get executions that match these workflow IDs
+    return Array.from(this.workflowExecutions.values())
+      .filter(execution => userWorkflowIds.has(execution.workflowId))
+      .sort((a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime())
+      .slice(0, limit);
+  }
+
+  async getWorkflowExecution(id: number): Promise<WorkflowExecution | undefined> {
+    return this.workflowExecutions.get(id);
+  }
+
+  async createWorkflowExecution(insertExecution: InsertWorkflowExecution): Promise<WorkflowExecution> {
+    const id = this.workflowExecutionIdCounter++;
+    
+    // Type-safe initialization with handling for startTime being required
+    const execution: WorkflowExecution = {
+      id,
+      workflowId: insertExecution.workflowId,
+      userId: insertExecution.userId,
+      status: insertExecution.status,
+      startTime: insertExecution.startTime ?? new Date(), // Default to now if not provided
+      endTime: insertExecution.endTime ?? null,
+      triggerSource: insertExecution.triggerSource ?? null,
+      result: insertExecution.result ?? null,
+      logs: insertExecution.logs ?? null,
+      error: insertExecution.error ?? null,
+      executionTime: insertExecution.executionTime ?? null,
+      triggerData: insertExecution.triggerData ?? null
+    };
+    
+    this.workflowExecutions.set(id, execution);
+    return execution;
+  }
+
+  async updateWorkflowExecution(id: number, updates: Partial<InsertWorkflowExecution>): Promise<WorkflowExecution | undefined> {
+    const existingExecution = this.workflowExecutions.get(id);
+    if (!existingExecution) return undefined;
+
+    const updatedExecution = { ...existingExecution, ...updates };
+    this.workflowExecutions.set(id, updatedExecution);
+    return updatedExecution;
+  }
+
+  async deleteWorkflowExecution(id: number): Promise<boolean> {
+    return this.workflowExecutions.delete(id);
+  }
 }
 
-// Export storage instance
-// We'll import the DatabaseStorage to use PostgreSQL by default
-import { DatabaseStorage } from "./database-storage";
-
-// Export both storage implementations for flexibility
+// Export storage instances
 export const memStorage = new MemStorage();
 export const dbStorage = new DatabaseStorage();
 
