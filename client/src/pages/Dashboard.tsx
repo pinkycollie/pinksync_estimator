@@ -7,6 +7,7 @@ import QuickActions from '@/components/dashboard/QuickActions';
 import AIRecommendations from '@/components/dashboard/AIRecommendations';
 import RecentFiles from '@/components/dashboard/RecentFiles';
 import Integrations from '@/components/dashboard/Integrations';
+import EntrepreneurIdeas from '@/components/dashboard/EntrepreneurIdeas';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -32,6 +33,7 @@ export default function Dashboard() {
     queryClient.prefetchQuery({ queryKey: ['/api/files/recent'] });
     queryClient.prefetchQuery({ queryKey: ['/api/recommendations', { active: true }] });
     queryClient.prefetchQuery({ queryKey: ['/api/integrations'] });
+    queryClient.prefetchQuery({ queryKey: ['/api/entrepreneur/ideas'] });
   }, []);
   
   // Get authenticated user data
@@ -128,6 +130,9 @@ export default function Dashboard() {
               <AIRecommendations />
             </div>
           </div>
+          
+          {/* Entrepreneur Ideas */}
+          <EntrepreneurIdeas />
           
           {/* Recent Files */}
           <RecentFiles />

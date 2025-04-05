@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes, useReplitStorage } from "./routes";
+import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
@@ -37,13 +37,7 @@ app.use((req, res, next) => {
 });
 
 (async () => {
-  // Try to connect to Replit Database before registering routes
-  try {
-    await useReplitStorage();
-  } catch (error) {
-    console.error("Error initializing database connection:", error);
-    // We'll still continue and use in-memory storage
-  }
+  // Database connection will be handled in registerRoutes
 
   const server = await registerRoutes(app);
 

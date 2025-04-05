@@ -1,8 +1,9 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
+import { storage, memStorage, dbStorage, MemStorage } from "./storage";
 import type { IStorage } from "./storage"; 
-import { replitStorage } from "./replit-storage";
+// Import removed - no longer using Replit storage
+// Import removed - no longer using Astra storage
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { z } from "zod";
 import { insertFileSchema, insertIntegrationSchema, insertRecommendationSchema, type InsertFile, type File } from "@shared/schema";
@@ -14,30 +15,36 @@ import oauthRouter from "./routes/oauth";
 import chatHistoryRouter from "./routes/chatHistory";
 import entrepreneurRouter from "./routes/entrepreneur";
 
-// Set up storage with fallback to in-memory when Astra DB connection fails
-let activeStorage: IStorage = storage; // Default to in-memory storage
+// Set up storage with PostgreSQL by default, with fallbacks
+let activeStorage: IStorage = storage; // This is dbStorage by default
 
-// Try to use Replit Database storage, fallback to in-memory if it fails
-export const useReplitStorage = async () => {
+/**
+ * Utility to attempt to use PostgreSQL Database storage
+ */
+const usePostgresStorage = async (): Promise<boolean> => {
   try {
-    console.log("Attempting to use Replit Database for storage");
+    console.log("Attempting to use PostgreSQL Database for storage");
     
-    // Test query to verify connection
-    await replitStorage.getUser(1);
-    activeStorage = replitStorage;
-    console.log("Successfully connected to Replit Database");
+    // Try to see if we can use PostgreSQL Database
+    if (process.env.DATABASE_URL) {
+      // Test query to verify connection
+      await dbStorage.getUser(1);
+      activeStorage = dbStorage;
+      console.log("Successfully connected to PostgreSQL Database");
+      return true;
+    } else {
+      console.log("DATABASE_URL not found, PostgreSQL not available");
+    }
     
-    return true;
-  } catch (error) {
-    console.error("Failed to connect to Replit Database:", error);
+    // Fall back to memory storage
     console.log("Falling back to in-memory storage");
-    activeStorage = storage;
+    activeStorage = memStorage;
     
     // Create a default user in memory if needed
     try {
-      const memUser = await storage.getUserByUsername("pinky");
+      const memUser = await memStorage.getUserByUsername("pinky");
       if (!memUser) {
-        await storage.createUser({
+        await memStorage.createUser({
           username: "pinky",
           displayName: "Pinky Kim",
           email: "pinky@example.com",
@@ -52,12 +59,18 @@ export const useReplitStorage = async () => {
     }
     
     return false;
+  } catch (error) {
+    console.error("Failed to connect to PostgreSQL Database:", error);
+    console.log("Falling back to in-memory storage");
+    activeStorage = memStorage;
+    
+    return false;
   }
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Try to use Replit Database storage if available
-  await useReplitStorage();
+  // Try to use PostgreSQL Database storage
+  await usePostgresStorage();
   
   // Set up Replit Auth
   await setupAuth(app);
@@ -370,12 +383,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get file stats by category
       const fileStats = await activeStorage.getFileStats(user.id);
       
-      // Check if we're using Replit Database or in-memory storage
-      const usingReplitDb = activeStorage === replitStorage;
+      // Check which database we're connected to
+      let dbType = "In-memory";
+      if (activeStorage === dbStorage) {
+        dbType = "PostgreSQL";
+      } else {
+        dbType = "In-memory";
+      }
       
       res.json({
         database: {
-          type: usingReplitDb ? "Replit Database" : "In-memory",
+          type: dbType,
           status: "connected"
         },
         sources: {
@@ -423,11 +441,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Database health check endpoint
   app.get("/api/system/db-status", async (req: Request, res: Response) => {
     try {
-      // Check if we're connected to Replit Database
-      const replitDbConnected = activeStorage === replitStorage;
+      // Check which database we're connected to
+      let dbType = "In-memory";
+      if (activeStorage === dbStorage) {
+        dbType = "PostgreSQL";
+      } else {
+        dbType = "In-memory";
+      }
       
       res.json({
-        dbType: replitDbConnected ? "Replit Database" : "In-memory",
+        dbType,
         status: "connected",
         timestamp: new Date().toISOString()
       });
