@@ -10,11 +10,9 @@ import {
   AutomationWorkflow,
   ScheduleConfig
 } from '@shared/schema';
-import OpenAI from "openai";
 import { HfInference } from "@huggingface/inference";
 
-// Initialize AI clients if API keys are available
-const openai = process.env.OPENAI_API_KEY ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) : null;
+// Initialize AI client if API key is available
 const hf = process.env.HUGGINGFACE_API_KEY ? new HfInference(process.env.HUGGINGFACE_API_KEY) : null;
 
 // Define job schedule type
@@ -1225,35 +1223,25 @@ class AutomationService {
         };
       }
       
-      // Check if AI provider is available
-      if (provider === 'openai' && !openai) {
-        return {
-          success: false,
-          error: 'OpenAI API key not configured. Please set the OPENAI_API_KEY environment variable.'
-        };
-      } else if (provider === 'huggingface' && !hf) {
+      // We only use Hugging Face, check if it's available
+      if (!hf) {
         return {
           success: false,
           error: 'Hugging Face API key not configured. Please set the HUGGINGFACE_API_KEY environment variable.'
         };
       }
       
-      // Execute the analysis based on type and provider
+      // Execute the analysis with Hugging Face
       let result;
-      switch (provider) {
-        case 'openai':
-          result = await this.performOpenAIAnalysis(analysisType, data, resolvedPrompt, resolvedModelConfig);
-          break;
-          
-        case 'huggingface':
-          result = await this.performHuggingFaceAnalysis(analysisType, data, resolvedPrompt, resolvedModelConfig);
-          break;
-          
-        default:
-          return {
-            success: false,
-            error: `Unknown AI provider: ${provider}`
-          };
+      
+      // Map any 'openai' provider to use Hugging Face instead
+      if (provider === 'openai' || provider === 'huggingface') {
+        result = await this.performHuggingFaceAnalysis(analysisType, data, resolvedPrompt, resolvedModelConfig);
+      } else {
+        return {
+          success: false,
+          error: `Unknown AI provider: ${provider}. Please use 'huggingface' as the provider.`
+        };
       }
       
       return {
@@ -1747,7 +1735,8 @@ class AutomationService {
   }
 
   /**
-   * Perform analysis using OpenAI API
+   * Perform analysis using OpenAI API - Now just an alias to HuggingFace
+   * Kept for backward compatibility
    */
   private async performOpenAIAnalysis(
     analysisType: string,
@@ -1755,97 +1744,12 @@ class AutomationService {
     prompt: string,
     config: any
   ): Promise<any> {
-    if (!openai) {
-      throw new Error('OpenAI API key not configured');
-    }
-    
-    const model = config.model || 'gpt-4o';
-    
-    switch (analysisType) {
-      case 'text_generation':
-        const completionResponse = await openai.chat.completions.create({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: config.systemPrompt || 'You are a helpful AI assistant.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          temperature: config.temperature || 0.7,
-          max_tokens: config.maxTokens || 300
-        });
-        
-        return completionResponse.choices[0].message.content;
-        
-      case 'text_classification':
-        const classificationResponse = await openai.chat.completions.create({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: config.systemPrompt || `Classify the following text into one of these categories: ${config.categories.join(', ')}`
-            },
-            {
-              role: 'user',
-              content: data
-            }
-          ],
-          temperature: 0.3,
-          max_tokens: 50
-        });
-        
-        return classificationResponse.choices[0].message.content.trim();
-        
-      case 'summarization':
-        const summarizationResponse = await openai.chat.completions.create({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: config.systemPrompt || 'Summarize the following text concisely.'
-            },
-            {
-              role: 'user',
-              content: data
-            }
-          ],
-          temperature: 0.5,
-          max_tokens: config.maxTokens || 150
-        });
-        
-        return summarizationResponse.choices[0].message.content;
-        
-      case 'structured_extraction':
-        const extractionResponse = await openai.chat.completions.create({
-          model,
-          messages: [
-            {
-              role: 'system',
-              content: config.systemPrompt || `Extract structured information from the following text in JSON format with these fields: ${Object.keys(config.fields).join(', ')}`
-            },
-            {
-              role: 'user',
-              content: data
-            }
-          ],
-          temperature: 0.2,
-          response_format: { type: "json_object" },
-          max_tokens: config.maxTokens || 500
-        });
-        
-        return JSON.parse(extractionResponse.choices[0].message.content);
-        
-      default:
-        throw new Error(`Unknown OpenAI analysis type: ${analysisType}`);
-    }
+    // Redirect to HuggingFace implementation
+    return this.performHuggingFaceAnalysis(analysisType, data, prompt, config);
   }
-
+  
   /**
-   * Perform analysis using Hugging Face API
+   * Perform analysis using HuggingFace API
    */
   private async performHuggingFaceAnalysis(
     analysisType: string,
@@ -1857,43 +1761,74 @@ class AutomationService {
       throw new Error('Hugging Face API key not configured');
     }
     
-    const model = config.model || 'gpt2';
+    // Use appropriate HuggingFace model based on the analysis type
+    const model = config.model || 'google/flan-t5-xl';
     
     switch (analysisType) {
       case 'text_generation':
         const textGeneration = await hf.textGeneration({
-          model: model,
-          inputs: prompt,
+          model: config.model || 'google/flan-t5-xl',
+          inputs: `${config.systemPrompt || 'You are a helpful AI assistant.'}\n\n${prompt}`,
           parameters: {
-            max_new_tokens: config.maxTokens || 100,
+            max_new_tokens: config.maxTokens || 300,
             temperature: config.temperature || 0.7
           }
         });
         
         return textGeneration.generated_text;
         
+      case 'text_classification':
+        // Create a combined prompt that includes system instruction and data
+        const classificationPrompt = `${config.systemPrompt || `Classify the following text into one of these categories: ${config.categories ? config.categories.join(', ') : 'positive, negative, neutral'}`}\n\n${data}`;
+        
+        const classification = await hf.textClassification({
+          model: config.model || 'distilbert-base-uncased-finetuned-sst-2-english',
+          inputs: classificationPrompt
+        });
+        
+        // Return the label with highest score or the full classification result
+        return config.returnFullResults ? classification : classification[0].label;
+        
       case 'summarization':
         const summarization = await hf.summarization({
           model: config.model || 'facebook/bart-large-cnn',
           inputs: data,
           parameters: {
-            max_length: config.maxTokens || 130,
+            max_length: config.maxTokens || 150,
             min_length: config.minTokens || 30
           }
         });
         
         return summarization.summary_text;
         
-      case 'text_classification':
-        const classification = await hf.textClassification({
-          model: config.model || 'distilbert-base-uncased-finetuned-sst-2-english',
-          inputs: data
+      case 'structured_extraction':
+        // For structured extraction, we need to use text generation with specific prompt
+        const extractionPrompt = `${config.systemPrompt || `Extract structured information from the following text in JSON format with these fields: ${config.fields ? Object.keys(config.fields).join(', ') : 'unknown'}`}\n\nRespond ONLY with a valid JSON object.\n\n${data}`;
+        
+        const extraction = await hf.textGeneration({
+          model: config.model || 'google/flan-t5-xl',
+          inputs: extractionPrompt,
+          parameters: {
+            max_new_tokens: config.maxTokens || 500,
+            temperature: 0.2
+          }
         });
         
-        return classification;
+        // Try to extract and parse JSON from the response
+        try {
+          // Use [\s\S]* instead of dot-all (s) flag for better compatibility
+          const jsonMatch = extraction.generated_text.match(/\{([\s\S]*)\}/);
+          if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+          } else {
+            return { error: "Could not extract JSON from model response", raw_output: extraction.generated_text };
+          }
+        } catch (error) {
+          return { error: "Failed to parse JSON from model response", raw_output: extraction.generated_text };
+        }
         
       default:
-        throw new Error(`Unknown Hugging Face analysis type: ${analysisType}`);
+        throw new Error(`Unknown analysis type: ${analysisType}`);
     }
   }
 

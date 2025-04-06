@@ -2,14 +2,11 @@ import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { HfInference } from '@huggingface/inference';
-import OpenAI from 'openai';
 import { storage } from '../storage';
 import { type File } from '@shared/schema';
 
-// Initialize APIs
+// Initialize API
 const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
-// the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 /**
  * Represents a single transformation step in a data pipeline
@@ -496,31 +493,48 @@ Generated at: ${new Date().toISOString()}
   }
   
   /**
-   * Use OpenAI to process text data
+   * Use HuggingFace to process text data
+   */
+  async processWithHuggingFace(
+    prompt: string,
+    data: any,
+    context: PipelineContext
+  ): Promise<string> {
+    context.logs.push('Processing with HuggingFace');
+    
+    try {
+      const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
+      
+      // Combine prompt and data for the text generation
+      const fullPrompt = `${prompt}\n\nInput Data: ${dataStr}`;
+      
+      const response = await hf.textGeneration({
+        model: 'google/flan-t5-xl',
+        inputs: fullPrompt,
+        parameters: {
+          max_length: 500,
+          temperature: 0.7,
+          top_p: 0.95,
+          do_sample: true
+        }
+      });
+      
+      return response.generated_text || '';
+    } catch (err: any) {
+      context.logs.push(`HuggingFace processing error: ${err.message}`);
+      throw err;
+    }
+  }
+  
+  /**
+   * Alias for processWithHuggingFace for backward compatibility
    */
   async processWithOpenAI(
     prompt: string,
     data: any,
     context: PipelineContext
   ): Promise<string> {
-    context.logs.push('Processing with OpenAI');
-    
-    try {
-      const dataStr = typeof data === 'string' ? data : JSON.stringify(data);
-      
-      const response = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: prompt },
-          { role: "user", content: dataStr }
-        ],
-      });
-      
-      return response.choices[0].message.content || '';
-    } catch (err: any) {
-      context.logs.push(`OpenAI processing error: ${err.message}`);
-      throw err;
-    }
+    return this.processWithHuggingFace(prompt, data, context);
   }
   
   /**

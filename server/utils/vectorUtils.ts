@@ -1,8 +1,25 @@
-import OpenAI from 'openai';
+import { HfInference } from '@huggingface/inference';
 import { File } from '@shared/schema';
 
-// Initialize OpenAI client
-let openai: OpenAI | null = null;
+// Initialize HuggingFace client
+let hf: HfInference | null = null;
+
+/**
+ * Initialize the HuggingFace client with API key
+ * @returns boolean indicating if initialization was successful
+ */
+export function initHuggingFace(): boolean {
+  try {
+    if (process.env.HUGGINGFACE_API_KEY) {
+      hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error initializing HuggingFace client:', error);
+    return false;
+  }
+}
 
 // Define category tags based on the user's data categorization structure
 export const CATEGORY_TAGS = {
@@ -87,55 +104,52 @@ export const CATEGORY_TAGS = {
   API_INTEGRATIONS: ['Custom API', 'Third-Party API', 'Internal API']
 };
 
-// Check for OpenAI API key and initialize client
-const initOpenAI = () => {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    console.warn('OpenAI API key not found. Vector embeddings will not be available.');
-    return false;
-  }
-
-  try {
-    openai = new OpenAI({
-      apiKey: apiKey
-    });
-    return true;
-  } catch (error) {
-    console.error('Error initializing OpenAI client:', error);
-    return false;
-  }
-};
+// Use the initHuggingFace function defined above
 
 /**
- * Generate a text embedding using OpenAI's API
+ * Generate a text embedding using HuggingFace's API
  * @param text The text to generate an embedding for
  * @returns An array of numbers representing the embedding vector, or null if failed
  */
 export const generateEmbedding = async (text: string): Promise<number[] | null> => {
   // Check if we're in testing mode (no API key or API limit reached)
-  const forceTestMode = process.env.NODE_ENV === 'test' || !process.env.OPENAI_API_KEY;
+  const forceTestMode = process.env.NODE_ENV === 'test' || !process.env.HUGGINGFACE_API_KEY;
   
   if (forceTestMode) {
     console.log('Using mock embedding for testing');
     return generateMockEmbedding(text);
   }
   
-  // Initialize OpenAI if not already done
-  if (!openai) {
-    const initialized = initOpenAI();
+  // Initialize HuggingFace if not already done
+  if (!hf) {
+    const initialized = initHuggingFace();
     if (!initialized) {
-      console.log('OpenAI initialization failed, using mock embedding');
+      console.log('HuggingFace initialization failed, using mock embedding');
       return generateMockEmbedding(text);
     }
   }
 
   try {
-    const response = await openai!.embeddings.create({
-      model: "text-embedding-3-small",  // Using a smaller, faster model
-      input: text.slice(0, 8000),  // Limit to 8000 characters to stay within token limits
+    // Using sentence-transformers model for embeddings
+    const response = await hf!.featureExtraction({
+      model: 'sentence-transformers/all-MiniLM-L6-v2',
+      inputs: text.slice(0, 8000)  // Limit to 8000 characters to stay within model limits
     });
 
-    return response.data[0].embedding;
+    // Handle all possible return types from featureExtraction
+    if (Array.isArray(response)) {
+      // If it's already an array of numbers, return it
+      return response as number[];
+    } else if (typeof response === 'number') {
+      // If it's a single number, wrap it in an array
+      return [response];
+    } else if (Array.isArray(response) && Array.isArray(response[0])) {
+      // If it's a 2D array, flatten it
+      return (response as number[][])[0];
+    } else {
+      console.error('Unexpected response format from HuggingFace:', response);
+      return null;
+    }
   } catch (error) {
     console.error('Error generating embedding:', error);
     console.log('Falling back to mock embedding for testing');
@@ -202,23 +216,23 @@ export const analyzeAndTagFile = async (
   fileType: string
 ): Promise<string[]> => {
   // Check if we're in testing mode (no API key or API limit reached)
-  const forceTestMode = process.env.NODE_ENV === 'test' || !process.env.OPENAI_API_KEY;
+  const forceTestMode = process.env.NODE_ENV === 'test' || !process.env.HUGGINGFACE_API_KEY;
   
   if (forceTestMode) {
     console.log('Using mock tagging for testing');
     return generateMockTags(fileContent, fileName, fileType);
   }
   
-  if (!openai) {
-    const initialized = initOpenAI();
+  if (!hf) {
+    const initialized = initHuggingFace();
     if (!initialized) {
-      console.log('OpenAI initialization failed, using mock tagging');
+      console.log('HuggingFace initialization failed, using mock tagging');
       return generateMockTags(fileContent, fileName, fileType);
     }
   }
 
   try {
-    // Create a prompt that asks the model to identify relevant tags
+    // Create a prompt for the text classification
     const prompt = `
       Analyze this file information and identify the most relevant tags from the provided categories.
       
@@ -226,7 +240,7 @@ export const analyzeAndTagFile = async (
       File type: ${fileType}
       Content preview: ${fileContent.slice(0, 1000)}
       
-      Select only the most relevant tags from the following categories. Return ONLY the tags as a JSON array, nothing else.
+      Select only the most relevant tags from the following categories and format as JSON array:
       
       Available tags:
       ${Object.entries(CATEGORY_TAGS).map(([category, tags]) => 
@@ -234,16 +248,40 @@ export const analyzeAndTagFile = async (
       ).join('\n')}
     `;
 
-    const response = await openai!.chat.completions.create({
-      model: "gpt-3.5-turbo",
-      messages: [{ role: "user", content: prompt }],
-      response_format: { type: "json_object" }
+    // Using a text generation model for classification
+    const response = await hf!.textGeneration({
+      model: 'google/flan-t5-large',  // Using a smaller but effective model
+      inputs: prompt,
+      parameters: {
+        max_length: 200,
+        temperature: 0.3,
+        do_sample: false
+      }
     });
 
-    // Parse the JSON response
-    const content = response.choices[0].message.content || '{"tags": []}';
-    const parsedResponse = JSON.parse(content);
-    return parsedResponse.tags || [];
+    // Try to parse the response as JSON
+    try {
+      const content = response.generated_text;
+      // Find anything that looks like a JSON array in the response
+      // Use [\s\S]* instead of dot-all (s) flag for better compatibility
+      const jsonMatch = content.match(/\[([\s\S]*)\]/);
+      
+      if (jsonMatch) {
+        const jsonStr = jsonMatch[0].replace(/'/g, '"');
+        return JSON.parse(jsonStr);
+      } else {
+        // If we couldn't find a JSON array, extract words that match our known tags
+        const allTags = Object.values(CATEGORY_TAGS).flat();
+        const words = content.split(/[,\s\n]+/);
+        const matchedTags = words.filter(word => 
+          allTags.some(tag => tag.toLowerCase() === word.toLowerCase())
+        );
+        return matchedTags.length > 0 ? matchedTags : generateMockTags(fileContent, fileName, fileType);
+      }
+    } catch (parseError) {
+      console.error('Error parsing tag response:', parseError);
+      return generateMockTags(fileContent, fileName, fileType);
+    }
   } catch (error) {
     console.error('Error analyzing file for tags:', error);
     console.log('Falling back to mock tagging for testing');
