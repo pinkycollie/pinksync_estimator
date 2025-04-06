@@ -10,11 +10,17 @@ import {
   ProjectPlan, InsertProjectPlan,
   ProjectMilestone, InsertProjectMilestone,
   CodeSource, InsertCodeSource,
+  FileWatchConfig, InsertFileWatchConfig,
+  AutomationWorkflow, InsertAutomationWorkflow,
+  WorkflowExecution, InsertWorkflowExecution,
   // Schemas
   users, files, integrations, recommendations,
   aiChatHistories, aiChatMessages, 
   entrepreneurIdeas, ideaVersions,
-  projectPlans, projectMilestones, codeSources
+  projectPlans, projectMilestones, codeSources,
+  fileWatchConfigs, automationWorkflows, workflowExecutions,
+  // Enums
+  TriggerType, WorkflowStatus
 } from "@shared/schema";
 
 import { IStorage } from "./storage";
@@ -483,11 +489,189 @@ export class DatabaseStorage implements IStorage {
   }
 
   async incrementCodeSourceUseCount(id: number): Promise<CodeSource | undefined> {
-    const [updatedSource] = await db.update(codeSources)
-      .set({ useCount: sql`${codeSources.useCount} + 1` })
+    const [codeSource] = await db.select().from(codeSources).where(eq(codeSources.id, id));
+    if (!codeSource) return undefined;
+
+    const [updatedCodeSource] = await db.update(codeSources)
+      .set({
+        useCount: (codeSource.useCount || 0) + 1,
+        // Use SQL to update the last used timestamp
+        updatedAt: new Date()
+      })
       .where(eq(codeSources.id, id))
       .returning();
-    return updatedSource;
+
+    return updatedCodeSource;
+  }
+
+  // File Watch Config methods
+  async getFileWatchConfigs(userId: number): Promise<FileWatchConfig[]> {
+    return db.select().from(fileWatchConfigs).where(eq(fileWatchConfigs.userId, userId));
+  }
+
+  async getActiveFileWatchConfigs(userId: number): Promise<FileWatchConfig[]> {
+    return db.select().from(fileWatchConfigs).where(
+      and(
+        eq(fileWatchConfigs.userId, userId),
+        eq(fileWatchConfigs.isActive, true)
+      )
+    );
+  }
+
+  async getFileWatchConfig(id: number): Promise<FileWatchConfig | undefined> {
+    const [config] = await db.select().from(fileWatchConfigs).where(eq(fileWatchConfigs.id, id));
+    return config;
+  }
+
+  async createFileWatchConfig(config: InsertFileWatchConfig): Promise<FileWatchConfig> {
+    const [newConfig] = await db.insert(fileWatchConfigs).values(config).returning();
+    return newConfig;
+  }
+
+  async updateFileWatchConfig(id: number, configUpdate: Partial<InsertFileWatchConfig>): Promise<FileWatchConfig | undefined> {
+    const [updatedConfig] = await db.update(fileWatchConfigs)
+      .set(configUpdate)
+      .where(eq(fileWatchConfigs.id, id))
+      .returning();
+    return updatedConfig;
+  }
+
+  async deleteFileWatchConfig(id: number): Promise<boolean> {
+    const result = await db.delete(fileWatchConfigs).where(eq(fileWatchConfigs.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // Automation Workflow methods
+  async getAutomationWorkflows(userId: number): Promise<AutomationWorkflow[]> {
+    return db.select().from(automationWorkflows).where(eq(automationWorkflows.userId, userId));
+  }
+
+  async getActiveAutomationWorkflows(userId: number): Promise<AutomationWorkflow[]> {
+    return db.select().from(automationWorkflows).where(
+      and(
+        eq(automationWorkflows.userId, userId),
+        eq(automationWorkflows.isActive, true)
+      )
+    );
+  }
+
+  async getAutomationWorkflowsByTriggerType(userId: number, triggerType: TriggerType): Promise<AutomationWorkflow[]> {
+    return db.select().from(automationWorkflows).where(
+      and(
+        eq(automationWorkflows.userId, userId),
+        eq(automationWorkflows.triggerType, triggerType)
+      )
+    );
+  }
+
+  async getAutomationWorkflow(id: number): Promise<AutomationWorkflow | undefined> {
+    const [workflow] = await db.select().from(automationWorkflows).where(eq(automationWorkflows.id, id));
+    return workflow;
+  }
+
+  async createAutomationWorkflow(insertWorkflow: InsertAutomationWorkflow): Promise<AutomationWorkflow> {
+    const [workflow] = await db.insert(automationWorkflows).values(insertWorkflow).returning();
+    return workflow;
+  }
+
+  async updateAutomationWorkflow(id: number, workflowUpdate: Partial<InsertAutomationWorkflow>): Promise<AutomationWorkflow | undefined> {
+    const [updatedWorkflow] = await db.update(automationWorkflows)
+      .set(workflowUpdate)
+      .where(eq(automationWorkflows.id, id))
+      .returning();
+    return updatedWorkflow;
+  }
+
+  async deleteAutomationWorkflow(id: number): Promise<boolean> {
+    // First delete associated executions
+    await db.delete(workflowExecutions).where(eq(workflowExecutions.workflowId, id));
+    // Then delete the workflow
+    const result = await db.delete(automationWorkflows).where(eq(automationWorkflows.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async executeWorkflow(id: number, triggerData?: any): Promise<WorkflowExecution> {
+    // Get the workflow
+    const workflow = await this.getAutomationWorkflow(id);
+    if (!workflow) {
+      throw new Error(`Workflow with id ${id} not found`);
+    }
+
+    // Create execution record
+    const execution = await this.createWorkflowExecution({
+      workflowId: id,
+      userId: workflow.userId,
+      status: WorkflowStatus.RUNNING,
+      startTime: new Date(),
+      triggerSource: 'manual',
+      triggerData
+    });
+
+    // Update workflow execution count
+    await this.updateAutomationWorkflow(id, {
+      executionCount: (workflow.executionCount || 0) + 1,
+      lastRunAt: new Date()
+    });
+
+    return execution;
+  }
+
+  // Workflow Execution methods
+  async getWorkflowExecutions(workflowId: number): Promise<WorkflowExecution[]> {
+    return db.select().from(workflowExecutions)
+      .where(eq(workflowExecutions.workflowId, workflowId))
+      .orderBy(desc(workflowExecutions.startTime));
+  }
+
+  async getRecentWorkflowExecutions(userId: number, limit: number = 10): Promise<WorkflowExecution[]> {
+    return db.select().from(workflowExecutions)
+      .where(eq(workflowExecutions.userId, userId))
+      .orderBy(desc(workflowExecutions.startTime))
+      .limit(limit);
+  }
+
+  async getWorkflowExecution(id: number): Promise<WorkflowExecution | undefined> {
+    const [execution] = await db.select().from(workflowExecutions).where(eq(workflowExecutions.id, id));
+    return execution;
+  }
+
+  async createWorkflowExecution(insertExecution: InsertWorkflowExecution): Promise<WorkflowExecution> {
+    const [execution] = await db.insert(workflowExecutions).values(insertExecution).returning();
+    return execution;
+  }
+
+  async updateWorkflowExecution(id: number, executionUpdate: Partial<InsertWorkflowExecution>): Promise<WorkflowExecution | undefined> {
+    const [updatedExecution] = await db.update(workflowExecutions)
+      .set(executionUpdate)
+      .where(eq(workflowExecutions.id, id))
+      .returning();
+    
+    // If this is a workflow completion, update the average execution time for the workflow
+    if (executionUpdate.status === WorkflowStatus.COMPLETED && updatedExecution.endTime && updatedExecution.startTime) {
+      const executionTime = updatedExecution.endTime.getTime() - updatedExecution.startTime.getTime();
+      
+      // Get the workflow
+      const [workflow] = await db.select().from(automationWorkflows)
+        .where(eq(automationWorkflows.id, updatedExecution.workflowId));
+      
+      if (workflow) {
+        // Update average execution time
+        const currentAverage = workflow.averageExecutionTime || 0;
+        const currentCount = workflow.executionCount || 1;
+        const newAverage = Math.round((currentAverage * (currentCount - 1) + executionTime) / currentCount);
+        
+        await db.update(automationWorkflows)
+          .set({ averageExecutionTime: newAverage })
+          .where(eq(automationWorkflows.id, updatedExecution.workflowId));
+      }
+    }
+    
+    return updatedExecution;
+  }
+  
+  async deleteWorkflowExecution(id: number): Promise<boolean> {
+    const result = await db.delete(workflowExecutions).where(eq(workflowExecutions.id, id));
+    return result.rowCount !== null && result.rowCount > 0;
   }
 
   // Synchronization and platform integration methods
@@ -550,6 +734,20 @@ export class DatabaseStorage implements IStorage {
     return { resolved: 0, failed: 0 };
   }
 
+  // Create notification method (simplified for now)
+  async createNotification(notification: { 
+    userId: number;
+    title: string;
+    message: string;
+    type?: string;
+    relatedEntityId?: number;
+    relatedEntityType?: string;
+  }): Promise<{ id: number; success: boolean }> {
+    // This is a placeholder until we implement a proper notification system
+    console.log(`NOTIFICATION for user ${notification.userId}: ${notification.title} - ${notification.message}`);
+    return { id: Date.now(), success: true };
+  }
+  
   // Vector search methods - to be implemented with actual embedding generation
   async processFileForVectorSearch(fileId: number): Promise<File | undefined> {
     // Generate embeddings and update file

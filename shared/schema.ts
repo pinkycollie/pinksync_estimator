@@ -453,12 +453,18 @@ export enum WorkflowStatus {
 export enum WorkflowStepType {
   FILE_OPERATION = "file_operation",
   DATA_TRANSFORM = "data_transform",
-  API_REQUEST = "api_request",
-  AI_PROCESSING = "ai_processing",
-  NOTIFICATION = "notification",
-  PIPELINE = "pipeline",
+  HTTP_REQUEST = "http_request",
   SCRIPT = "script",
-  CODE_SNIPPET = "code_snippet",
+  CONDITIONAL = "conditional",
+  FILE_IMPORT = "file_import",
+  FILE_EXPORT = "file_export",
+  AI_ANALYSIS = "ai_analysis",
+  DATABASE_OPERATION = "database_operation",
+  NOTIFICATION = "notification",
+  API_REQUEST = "api_request", // Keep for backward compatibility
+  AI_PROCESSING = "ai_processing", // Keep for backward compatibility
+  PIPELINE = "pipeline", // Keep for backward compatibility
+  CODE_SNIPPET = "code_snippet", // Keep for backward compatibility
 }
 
 // Schedule configuration type
@@ -466,6 +472,27 @@ export interface ScheduleConfig {
   schedule: string; // cron expression
   timezone?: string;
   description?: string;
+  
+  // Schedule types
+  type?: string; // "cron", "interval", "specificTime", "daily", "weekly", "monthly"
+  
+  // For cron schedules
+  cron?: string;
+  
+  // For interval schedules
+  minutes?: number;
+  hours?: number;
+  days?: number;
+  
+  // For specific time schedules
+  hour?: number;
+  minute?: number;
+  
+  // For weekly schedules
+  dayOfWeek?: number; // 0-6, where 0 is Sunday
+  
+  // For monthly schedules
+  day?: number; // 1-31
 }
 
 // File event configuration type

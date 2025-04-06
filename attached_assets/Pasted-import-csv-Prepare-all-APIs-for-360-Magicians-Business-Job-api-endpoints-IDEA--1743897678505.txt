@@ -1,0 +1,42 @@
+import csv
+
+# Prepare all APIs for 360 Magicians (Business & Job)
+api_endpoints = [
+    # IDEA
+    ("Idea", "/api/vocational-readiness/start", "POST", "Start vocational readiness assessment"),
+    ("Idea", "/api/vocational-readiness/submit", "POST", "Submit completed assessment"),
+    ("Idea", "/api/vocational-readiness/status", "GET", "Get readiness assessment result/status"),
+    
+    # BUILD
+    ("Build", "/api/business-plan/init", "POST", "Initialize a new business plan structure"),
+    ("Build", "/api/business-plan/section/{id}", "GET", "Fetch specific business plan section"),
+    ("Build", "/api/business-plan/update", "POST", "Update business plan content"),
+    ("Build", "/api/job-profile/create", "POST", "Create job search profile"),
+    ("Build", "/api/job-profile/upload-resume", "POST", "Upload resume for job seeker"),
+    
+    # GROW
+    ("Grow", "/api/opportunities/match", "GET", "Match user with job or business opportunities"),
+    ("Grow", "/api/funding/resources", "GET", "Get list of funding & grant programs"),
+    ("Grow", "/api/vrs/eligibility/check", "POST", "Check VR eligibility based on profile"),
+    
+    # MANAGE
+    ("Manage", "/api/dashboard/overview", "GET", "Retrieve user dashboard and status"),
+    ("Manage", "/api/documents/upload", "POST", "Upload support documents (tax, legal, ID)"),
+    ("Manage", "/api/progress/update", "POST", "Update progress checkpoint for user"),
+    ("Manage", "/api/client-notes", "POST", "Save client notes or coaching summary"),
+    
+    # SHARED/AUX
+    ("Shared", "/api/notifications/send", "POST", "Send alert, SMS, or email notification"),
+    ("Shared", "/api/system/logs", "GET", "Access audit logs of user actions"),
+    ("Shared", "/api/subscription/upgrade", "POST", "Upgrade to premium access outside VR"),
+]
+
+# Write CSV for Notion import
+csv_path = "/mnt/data/360_magicians_api_endpoints.csv"
+with open(csv_path, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(["Category", "Endpoint", "Method", "Description", "Status"])
+    for row in api_endpoints:
+        writer.writerow(list(row) + ["Planned"])
+
+csv_path

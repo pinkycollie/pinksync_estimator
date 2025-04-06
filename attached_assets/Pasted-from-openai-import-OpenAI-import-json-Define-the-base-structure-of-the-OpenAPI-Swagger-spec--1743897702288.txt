@@ -1,0 +1,136 @@
+from openai import OpenAI
+import json
+
+# Define the base structure of the OpenAPI (Swagger) spec for the Replit AI Hub system
+swagger_spec = {
+    "openapi": "3.0.0",
+    "info": {
+        "title": "Replit AI Hub - File & Project Automation",
+        "version": "1.0.0",
+        "description": "A smart automation API for managing file structure, AI diagnosis, chat-driven project creation, and CI/CD deployment."
+    },
+    "servers": [{"url": "https://localhost:8000"}],
+    "paths": {
+        "/api/files/scan": {
+            "get": {
+                "summary": "Scan file system for structure, TODOs, broken imports",
+                "responses": {"200": {"description": "Scan result"}}
+            }
+        },
+        "/api/files/errors": {
+            "get": {
+                "summary": "Get list of files with errors",
+                "responses": {"200": {"description": "List of errors"}}
+            }
+        },
+        "/api/files/fix-suggestions": {
+            "post": {
+                "summary": "Suggest fixes for detected file issues",
+                "responses": {"200": {"description": "Fix suggestions"}}
+            }
+        },
+        "/api/chat/import": {
+            "post": {
+                "summary": "Import chat logs or code snippets",
+                "responses": {"200": {"description": "Import status"}}
+            }
+        },
+        "/api/chat/generate-project": {
+            "post": {
+                "summary": "Generate a new project from chat contents",
+                "responses": {"200": {"description": "Generated project details"}}
+            }
+        },
+        "/api/project/from-chat/{id}": {
+            "get": {
+                "summary": "Fetch a project generated from a chat ID",
+                "parameters": [{
+                    "name": "id",
+                    "in": "path",
+                    "required": True,
+                    "schema": {"type": "string"}
+                }],
+                "responses": {"200": {"description": "Project details"}}
+            }
+        },
+        "/api/project/init": {
+            "post": {
+                "summary": "Initialize a new modular project folder",
+                "responses": {"200": {"description": "Project initialized"}}
+            }
+        },
+        "/api/project/add-dependency": {
+            "post": {
+                "summary": "Add a new Python dependency to project",
+                "responses": {"200": {"description": "Dependency added"}}
+            }
+        },
+        "/api/project/list": {
+            "get": {
+                "summary": "List all modular projects",
+                "responses": {"200": {"description": "List of projects"}}
+            }
+        },
+        "/api/debug/scan": {
+            "get": {
+                "summary": "Run linter or analysis on current codebase",
+                "responses": {"200": {"description": "Debug report"}}
+            }
+        },
+        "/api/debug/clean": {
+            "post": {
+                "summary": "Clean formatting and unused code",
+                "responses": {"200": {"description": "Clean status"}}
+            }
+        },
+        "/api/debug/fix-common-errors": {
+            "post": {
+                "summary": "Apply AI-assisted fixes for common issues",
+                "responses": {"200": {"description": "Fix status"}}
+            }
+        },
+        "/api/ai/diagnose": {
+            "post": {
+                "summary": "Run AI diagnosis on a code file",
+                "responses": {"200": {"description": "Diagnosis result"}}
+            }
+        },
+        "/api/ai/complete-code": {
+            "post": {
+                "summary": "Complete or suggest continuation for a code file",
+                "responses": {"200": {"description": "AI code suggestions"}}
+            }
+        },
+        "/api/ai/summarize-file": {
+            "post": {
+                "summary": "Summarize the purpose and structure of a file",
+                "responses": {"200": {"description": "Summary output"}}
+            }
+        },
+        "/api/deploy/init": {
+            "post": {
+                "summary": "Set up deployment structure and config",
+                "responses": {"200": {"description": "Deployment structure initialized"}}
+            }
+        },
+        "/api/deploy/github-actions": {
+            "post": {
+                "summary": "Generate GitHub Actions CI/CD workflow",
+                "responses": {"200": {"description": "CI/CD workflow created"}}
+            }
+        },
+        "/api/deploy/status": {
+            "get": {
+                "summary": "Check deployment and CI/CD status",
+                "responses": {"200": {"description": "Deployment status"}}
+            }
+        }
+    }
+}
+
+# Save the Swagger spec to a JSON file
+swagger_json_path = "/mnt/data/replit_ai_hub_swagger.json"
+with open(swagger_json_path, "w") as f:
+    json.dump(swagger_spec, f, indent=2)
+
+swagger_json_path
