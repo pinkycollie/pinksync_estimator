@@ -84,6 +84,17 @@ export class DatabaseStorage implements IStorage {
       )
     );
   }
+  
+  async getFileBySourceIdAndSource(userId: number, sourceId: string, source: string): Promise<File | undefined> {
+    const [file] = await db.select().from(files).where(
+      and(
+        eq(files.userId, userId),
+        eq(files.source, source),
+        eq(files.sourceId, sourceId)
+      )
+    );
+    return file;
+  }
 
   async getRecentFiles(userId: number, limit: number = 10): Promise<File[]> {
     return db.select().from(files)
@@ -676,23 +687,436 @@ export class DatabaseStorage implements IStorage {
 
   // Synchronization and platform integration methods
   async synchronizeDropbox(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }> {
-    // Implementation will be added when Dropbox API integration is implemented
-    return { success: true, fileCount: 0 };
+    try {
+      // Import Dropbox utilities
+      const { createDropboxClientFromIntegration, testDropboxConnection, synchronizeFromDropbox } = await import('./utils/dropboxUtils');
+      
+      // Get the integration
+      const integration = await this.getIntegration(integrationId);
+      if (!integration || integration.userId !== userId || integration.type !== 'dropbox') {
+        return { success: false, fileCount: 0, errors: ['Invalid Dropbox integration'] };
+      }
+      
+      // Create Dropbox client from the integration config
+      const dropboxClient = createDropboxClientFromIntegration(integration);
+      
+      if (!dropboxClient) {
+        return { success: false, fileCount: 0, errors: ['Could not create Dropbox client'] };
+      }
+      
+      // Test the connection
+      const connectionTest = await testDropboxConnection(dropboxClient);
+      if (!connectionTest.success) {
+        return { 
+          success: false, 
+          fileCount: 0, 
+          errors: [connectionTest.message || 'Unknown connection error']
+        };
+      }
+      
+      // Mark integration as syncing
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date(),
+        status: 'syncing' 
+      });
+      
+      // Fetch files from Dropbox
+      const { files: dbxFiles, errors: syncDbxErrors } = await synchronizeFromDropbox(dropboxClient, userId);
+      let dbxErrors = syncDbxErrors || [];
+      
+      const createdFiles = [];
+      
+      // Process and save files
+      for (const fileData of dbxFiles) {
+        try {
+          // Check if file with same sourceId already exists
+          const existingFile = await this.getFileBySourceIdAndSource(userId, fileData.metadata.id, 'dropbox');
+          
+          if (existingFile) {
+            // Update existing file
+            await this.updateFile(existingFile.id, {
+              name: fileData.name,
+              path: fileData.path,
+              size: fileData.size,
+              lastModified: fileData.lastModified,
+              isProcessed: false, // Mark for reprocessing
+              metadata: fileData.metadata
+            });
+            
+            createdFiles.push(existingFile);
+          } else {
+            // Create new file
+            const newFile = await this.createFile(fileData);
+            createdFiles.push(newFile);
+          }
+        } catch (error: any) {
+          console.error(`Error processing Dropbox file ${fileData.name}:`, error);
+          dbxErrors.push(`Error processing file ${fileData.name}: ${getSafeMessage(error.message)}`);
+        }
+      }
+      
+      // Mark integration as active and update last synced time
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date(),
+        status: 'active' 
+      });
+      
+      return { 
+        success: true, 
+        fileCount: createdFiles.length,
+        errors: dbxErrors
+      };
+    } catch (error: any) {
+      console.error("Error synchronizing Dropbox:", error);
+      
+      // Update integration status
+      try {
+        await this.updateIntegration(integrationId, { 
+          lastSynced: new Date(),
+          status: 'error',
+          lastError: error.message
+        });
+      } catch (updateError) {
+        console.error("Error updating integration status:", updateError);
+      }
+      
+      return { 
+        success: false, 
+        fileCount: 0, 
+        errors: [getSafeMessage(error.message) || 'Unknown error during Dropbox synchronization'] 
+      };
+    }
   }
 
   async synchronizeIOS(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }> {
-    // Implementation will be added when iOS integration is implemented
-    return { success: true, fileCount: 0 };
+    try {
+      // Import iOS utilities
+      const { createiCloudClientFromIntegration, testiCloudConnection, synchronizeFromiCloud } = await import('./utils/iosUtils');
+      
+      // Get the integration
+      const integration = await this.getIntegration(integrationId);
+      if (!integration || integration.userId !== userId || integration.type !== 'ios') {
+        return { success: false, fileCount: 0, errors: ['Invalid iOS integration'] };
+      }
+      
+      // Create iCloud client from the integration config
+      const iCloudClient = createiCloudClientFromIntegration(integration);
+      
+      if (!iCloudClient) {
+        return { success: false, fileCount: 0, errors: ['Could not create iCloud client'] };
+      }
+      
+      // Mark integration as syncing
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date(),
+        status: 'syncing' 
+      });
+      
+      // Test the connection
+      const connectionTest = await testiCloudConnection(iCloudClient);
+      if (!connectionTest.success) {
+        // Update integration status
+        await this.updateIntegration(integrationId, { 
+          lastSynced: new Date(),
+          status: 'error',
+          lastError: getSafeMessage(connectionTest.message)
+        });
+        
+        return { 
+          success: false, 
+          fileCount: 0, 
+          errors: [getSafeMessage(connectionTest.message)]
+        };
+      }
+      
+      // Fetch files from iCloud
+      const { files: iOSFiles, errors: syncIOSErrors } = await synchronizeFromiCloud(iCloudClient, userId);
+      let iOSErrors = syncIOSErrors || [];
+      
+      const createdFiles = [];
+      
+      // Process and save files
+      for (const fileData of iOSFiles) {
+        try {
+          // Check if file with same sourceId already exists
+          const existingFile = await this.getFileBySourceIdAndSource(userId, fileData.sourceId, 'ios');
+          
+          if (existingFile) {
+            // Update existing file
+            await this.updateFile(existingFile.id, {
+              name: fileData.name,
+              path: fileData.path,
+              size: fileData.size,
+              lastModified: fileData.lastModified,
+              isProcessed: false, // Mark for reprocessing
+              metadata: fileData.metadata
+            });
+            
+            createdFiles.push(existingFile);
+          } else {
+            // Create new file
+            const newFile = await this.createFile(fileData);
+            createdFiles.push(newFile);
+          }
+        } catch (error: any) {
+          console.error(`Error processing iOS file ${fileData.name}:`, error);
+          iOSErrors.push(`Error processing file ${fileData.name}: ${getSafeMessage(error.message)}`);
+        }
+      }
+      
+      // Mark integration as active and update last synced time
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date(),
+        status: 'active' 
+      });
+      
+      return { 
+        success: true, 
+        fileCount: createdFiles.length,
+        errors: iOSErrors
+      };
+    } catch (error: any) {
+      console.error("Error synchronizing iOS:", error);
+      
+      // Update integration status
+      try {
+        await this.updateIntegration(integrationId, { 
+          lastSynced: new Date(),
+          status: 'error',
+          lastError: error.message
+        });
+      } catch (updateError) {
+        console.error("Error updating integration status:", updateError);
+      }
+      
+      return { 
+        success: false, 
+        fileCount: 0, 
+        errors: [error.message || 'Unknown error during iOS synchronization'] 
+      };
+    }
   }
 
   async synchronizeUbuntu(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }> {
-    // Implementation will be added when Ubuntu integration is implemented
-    return { success: true, fileCount: 0 };
+    try {
+      // Import Ubuntu utilities
+      const { createUbuntuClientFromIntegration, testUbuntuConnection, synchronizeFromUbuntu } = await import('./utils/ubuntuUtils');
+      
+      // Get the integration
+      const integration = await this.getIntegration(integrationId);
+      if (!integration || integration.userId !== userId || integration.type !== 'ubuntu') {
+        return { success: false, fileCount: 0, errors: ['Invalid Ubuntu integration'] };
+      }
+      
+      // Create Ubuntu client from the integration config
+      const ubuntuClient = createUbuntuClientFromIntegration(integration);
+      
+      if (!ubuntuClient) {
+        return { success: false, fileCount: 0, errors: ['Could not create Ubuntu client'] };
+      }
+      
+      // Mark integration as syncing
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date(),
+        status: 'syncing' 
+      });
+      
+      const config = integration.config as any;
+      
+      // Test the connection
+      const connectionTest = await testUbuntuConnection(ubuntuClient, config);
+      if (!connectionTest.success) {
+        // Update integration status
+        await this.updateIntegration(integrationId, { 
+          lastSynced: new Date(),
+          status: 'error',
+          lastError: getSafeMessage(connectionTest.message)
+        });
+        
+        return { 
+          success: false, 
+          fileCount: 0, 
+          errors: [getSafeMessage(connectionTest.message)]
+        };
+      }
+      
+      // Fetch files from Ubuntu
+      const { files: ubuntuFiles, errors: syncUbuntuErrors } = await synchronizeFromUbuntu(ubuntuClient, config, userId);
+      let ubuntuErrors = syncUbuntuErrors || [];
+      
+      const createdFiles = [];
+      
+      // Process and save files
+      for (const fileData of ubuntuFiles) {
+        try {
+          // Check if file with same sourceId already exists
+          const existingFile = await this.getFileBySourceIdAndSource(userId, fileData.sourceId, 'ubuntu');
+          
+          if (existingFile) {
+            // Update existing file
+            await this.updateFile(existingFile.id, {
+              name: fileData.name,
+              path: fileData.path,
+              size: fileData.size,
+              lastModified: fileData.lastModified,
+              isProcessed: false, // Mark for reprocessing
+              metadata: fileData.metadata
+            });
+            
+            createdFiles.push(existingFile);
+          } else {
+            // Create new file
+            const newFile = await this.createFile(fileData);
+            createdFiles.push(newFile);
+          }
+        } catch (error: any) {
+          console.error(`Error processing Ubuntu file ${fileData.name}:`, error);
+          ubuntuErrors.push(`Error processing file ${fileData.name}: ${getSafeMessage(error.message)}`);
+        }
+      }
+      
+      // Mark integration as active and update last synced time
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date(),
+        status: 'active' 
+      });
+      
+      return { 
+        success: true, 
+        fileCount: createdFiles.length,
+        errors: ubuntuErrors
+      };
+    } catch (error: any) {
+      console.error("Error synchronizing Ubuntu:", error);
+      
+      // Update integration status
+      try {
+        await this.updateIntegration(integrationId, { 
+          lastSynced: new Date(),
+          status: 'error',
+          lastError: error.message
+        });
+      } catch (updateError) {
+        console.error("Error updating integration status:", updateError);
+      }
+      
+      return { 
+        success: false, 
+        fileCount: 0, 
+        errors: [error.message || 'Unknown error during Ubuntu synchronization'] 
+      };
+    }
   }
 
   async synchronizeWindows(userId: number, integrationId: number): Promise<{ success: boolean; fileCount: number; errors?: string[] }> {
-    // Implementation will be added when Windows integration is implemented
-    return { success: true, fileCount: 0 };
+    try {
+      // Import Windows utilities
+      const { createWindowsClientFromIntegration, testWindowsConnection, synchronizeFromWindows } = await import('./utils/windowsUtils');
+      
+      // Get the integration
+      const integration = await this.getIntegration(integrationId);
+      if (!integration || integration.userId !== userId || integration.type !== 'windows') {
+        return { success: false, fileCount: 0, errors: ['Invalid Windows integration'] };
+      }
+      
+      // Create Windows client from the integration config
+      const windowsClient = createWindowsClientFromIntegration(integration);
+      
+      if (!windowsClient) {
+        return { success: false, fileCount: 0, errors: ['Could not create Windows client'] };
+      }
+      
+      // Mark integration as syncing
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date(),
+        status: 'syncing' 
+      });
+      
+      const config = integration.config as any;
+      
+      // Test the connection
+      const connectionTest = await testWindowsConnection(windowsClient, config);
+      if (!connectionTest.success) {
+        // Update integration status
+        await this.updateIntegration(integrationId, { 
+          lastSynced: new Date(),
+          status: 'error',
+          lastError: getSafeMessage(connectionTest.message)
+        });
+        
+        return { 
+          success: false, 
+          fileCount: 0, 
+          errors: [getSafeMessage(connectionTest.message)]
+        };
+      }
+      
+      // Fetch files from Windows
+      const { files: windowsFiles, errors: syncWindowsErrors } = await synchronizeFromWindows(windowsClient, config, userId);
+      let windowsErrors = syncWindowsErrors || [];
+      
+      const createdFiles = [];
+      
+      // Process and save files
+      for (const fileData of windowsFiles) {
+        try {
+          // Check if file with same sourceId already exists
+          const existingFile = await this.getFileBySourceIdAndSource(userId, fileData.sourceId, 'windows');
+          
+          if (existingFile) {
+            // Update existing file
+            await this.updateFile(existingFile.id, {
+              name: fileData.name,
+              path: fileData.path,
+              size: fileData.size,
+              lastModified: fileData.lastModified,
+              isProcessed: false, // Mark for reprocessing
+              metadata: fileData.metadata
+            });
+            
+            createdFiles.push(existingFile);
+          } else {
+            // Create new file
+            const newFile = await this.createFile(fileData);
+            createdFiles.push(newFile);
+          }
+        } catch (error: any) {
+          console.error(`Error processing Windows file ${fileData.name}:`, error);
+          windowsErrors.push(`Error processing file ${fileData.name}: ${getSafeMessage(error.message)}`);
+        }
+      }
+      
+      // Mark integration as active and update last synced time
+      await this.updateIntegration(integrationId, { 
+        lastSynced: new Date(),
+        status: 'active' 
+      });
+      
+      return { 
+        success: true, 
+        fileCount: createdFiles.length,
+        errors: windowsErrors
+      };
+    } catch (error: any) {
+      console.error("Error synchronizing Windows:", error);
+      
+      // Update integration status
+      try {
+        await this.updateIntegration(integrationId, { 
+          lastSynced: new Date(),
+          status: 'error',
+          lastError: error.message
+        });
+      } catch (updateError) {
+        console.error("Error updating integration status:", updateError);
+      }
+      
+      return { 
+        success: false, 
+        fileCount: 0, 
+        errors: [error.message || 'Unknown error during Windows synchronization'] 
+      };
+    }
   }
 
   async synchronizeAnytype(userId: number, integrationId: number): Promise<{ success: boolean; itemCount: number; errors?: string[] }> {
@@ -810,4 +1234,9 @@ function or(...conditions: any[]): any {
   }
   
   return result;
+}
+
+// Helper function to get a safe message
+function getSafeMessage(message?: string): string {
+  return message || 'Unknown error';
 }

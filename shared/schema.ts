@@ -32,6 +32,7 @@ export const files = pgTable("files", {
   sourceId: text("source_id"),
   lastModified: timestamp("last_modified").notNull(),
   userId: integer("user_id").notNull(),
+  size: integer("size"),
   metadata: jsonb("metadata"),
   isProcessed: boolean("is_processed").default(false),
   contentSummary: text("content_summary"),
@@ -48,6 +49,8 @@ export const integrations = pgTable("integrations", {
   name: text("name").notNull(),
   type: text("type").notNull(),
   isConnected: boolean("is_connected").default(false),
+  status: text("status").default("pending"), // pending, active, syncing, error
+  lastError: text("last_error"),
   config: jsonb("config"),
   userId: integer("user_id").notNull(),
   lastSynced: timestamp("last_synced"),
