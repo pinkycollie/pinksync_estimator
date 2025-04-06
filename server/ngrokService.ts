@@ -48,7 +48,7 @@ interface NgrokApiResponse {
 export async function getNgrokUrl(): Promise<string | null> {
   try {
     // Use the provided ngrok endpoint
-    const hardcodedEndpoint = "https://ep_2vKPm5WkHYM0ch5b8B2IPsKpzz1.ngrok-free.app";
+    const hardcodedEndpoint = "https://logical-forcibly-jay.ngrok-free.app";
     console.log('Using configured ngrok endpoint:', hardcodedEndpoint);
     return hardcodedEndpoint;
     
