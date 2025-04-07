@@ -350,6 +350,104 @@ export type InsertAutomationWorkflow = z.infer<typeof insertAutomationWorkflowSc
 export type WorkflowExecution = typeof workflowExecutions.$inferSelect;
 export type InsertWorkflowExecution = z.infer<typeof insertWorkflowExecutionSchema>;
 
+// AI Hub Pipeline definitions
+export const pipelines = pgTable('pipelines', {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  inputType: text("input_type").notNull(), // text, file, json, etc.
+  outputType: text("output_type").notNull(), // text, file, json, etc.
+  steps: jsonb("steps").notNull(), // Array of pipeline step configurations
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  createdBy: integer("created_by").notNull(), // userId
+  category: text("category"), // Text Analysis, Data Transformation, File Conversion, etc.
+  tags: text("tags"), // Comma-separated tags
+  metadata: jsonb("metadata"), // Additional metadata
+  configSchema: jsonb("config_schema"), // JSON Schema for pipeline configuration
+});
+
+export const insertPipelineSchema = createInsertSchema(pipelines).omit({
+  id: true,
+});
+
+// Pipeline Execution History
+export const pipelineExecutions = pgTable('pipeline_executions', {
+  id: serial("id").primaryKey(),
+  pipelineId: integer("pipeline_id").notNull(),
+  userId: integer("user_id").notNull(),
+  startTime: timestamp("start_time").notNull().defaultNow(),
+  endTime: timestamp("end_time"),
+  duration: integer("duration"), // in milliseconds
+  status: text("status").notNull().default("pending"), // pending, running, completed, failed, cancelled
+  input: jsonb("input"), // Input data for the pipeline
+  output: jsonb("output"), // Output data from the pipeline
+  error: text("error"), // Error message if the pipeline failed
+  logs: jsonb("logs"), // Array of log messages
+  metadata: jsonb("metadata"), // Additional metadata
+});
+
+export const insertPipelineExecutionSchema = createInsertSchema(pipelineExecutions).omit({
+  id: true,
+});
+
+// AI Hub Projects
+export const aiHubProjects = pgTable('ai_hub_projects', {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  description: text("description"),
+  path: text("path").notNull(), // File system path
+  type: text("type").notNull(), // web, api, cli, data_science, mobile, etc.
+  template: text("template"), // Template used for project creation
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  userId: integer("user_id").notNull(),
+  status: text("status").notNull().default("active"), // active, archived, deleted
+  chatSourceId: integer("chat_source_id"), // ID of AI chat that generated this project
+  files: jsonb("files"), // Array of file information in this project
+  dependencies: jsonb("dependencies"), // Project dependencies
+  metadata: jsonb("metadata"), // Additional metadata
+  gitRepository: text("git_repository"), // Git repository URL if applicable
+  lastScanResult: jsonb("last_scan_result"), // Result of the last file system scan
+});
+
+export const insertAiHubProjectSchema = createInsertSchema(aiHubProjects).omit({
+  id: true,
+});
+
+// Project Deployments
+export const projectDeployments = pgTable('project_deployments', {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  platform: text("platform").notNull(), // replit, vercel, github_pages, etc.
+  environment: text("environment").notNull().default("development"), // development, staging, production
+  status: text("status").notNull().default("pending"), // pending, in_progress, successful, failed
+  deploymentUrl: text("deployment_url"), // URL where project is deployed
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  completedAt: timestamp("completed_at"),
+  logs: jsonb("logs"), // Deployment logs
+  configFiles: jsonb("config_files"), // Configuration files used for deployment
+  metadata: jsonb("metadata"), // Additional metadata
+});
+
+export const insertProjectDeploymentSchema = createInsertSchema(projectDeployments).omit({
+  id: true,
+});
+
+// Export pipeline types
+export type Pipeline = typeof pipelines.$inferSelect;
+export type InsertPipeline = z.infer<typeof insertPipelineSchema>;
+
+export type PipelineExecution = typeof pipelineExecutions.$inferSelect;
+export type InsertPipelineExecution = z.infer<typeof insertPipelineExecutionSchema>;
+
+export type AiHubProject = typeof aiHubProjects.$inferSelect;
+export type InsertAiHubProject = z.infer<typeof insertAiHubProjectSchema>;
+
+export type ProjectDeployment = typeof projectDeployments.$inferSelect;
+export type InsertProjectDeployment = z.infer<typeof insertProjectDeploymentSchema>;
+
 // File category enum for reference
 export enum FileCategory {
   DOCUMENT = "document",
@@ -468,6 +566,75 @@ export enum WorkflowStepType {
   AI_PROCESSING = "ai_processing", // Keep for backward compatibility
   PIPELINE = "pipeline", // Keep for backward compatibility
   CODE_SNIPPET = "code_snippet", // Keep for backward compatibility
+}
+
+// Pipeline status enum for reference
+export enum PipelineStatus {
+  PENDING = "pending",
+  RUNNING = "running",
+  COMPLETED = "completed",
+  FAILED = "failed",
+  CANCELLED = "cancelled",
+}
+
+// Pipeline category enum for reference
+export enum PipelineCategory {
+  TEXT_ANALYSIS = "text_analysis",
+  DATA_TRANSFORMATION = "data_transformation",
+  FILE_CONVERSION = "file_conversion",
+  GIT_REPOSITORY = "git_repository",
+  IMAGE_PROCESSING = "image_processing",
+  AUDIO_PROCESSING = "audio_processing",
+  VIDEO_PROCESSING = "video_processing",
+  CODE_GENERATION = "code_generation",
+  AI_MODEL_TRAINING = "ai_model_training",
+}
+
+// Project type enum for reference
+export enum ProjectType {
+  WEB = "web",
+  API = "api",
+  CLI = "cli",
+  DATA_SCIENCE = "data_science",
+  MOBILE = "mobile",
+  DESKTOP = "desktop",
+  LIBRARY = "library",
+  OTHER = "other",
+}
+
+// Project template enum for reference
+export enum ProjectTemplate {
+  WEB = "web",
+  API = "api",
+  CLI = "cli",
+  DATA_SCIENCE = "data_science",
+  MOBILE = "mobile",
+  EMPTY = "empty",
+}
+
+// Deployment platform enum for reference
+export enum DeploymentPlatform {
+  REPLIT = "replit",
+  VERCEL = "vercel",
+  HEROKU = "heroku",
+  AWS = "aws",
+  GITHUB_PAGES = "github_pages",
+  NETLIFY = "netlify",
+}
+
+// Deployment environment enum for reference
+export enum DeploymentEnvironment {
+  DEVELOPMENT = "development",
+  STAGING = "staging",
+  PRODUCTION = "production",
+}
+
+// Deployment status enum for reference
+export enum DeploymentStatus {
+  PENDING = "pending",
+  IN_PROGRESS = "in_progress",
+  SUCCESSFUL = "successful",
+  FAILED = "failed",
 }
 
 // Schedule configuration type

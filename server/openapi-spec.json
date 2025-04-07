@@ -1,0 +1,844 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Pinky's AI OS Hub API",
+    "version": "1.0.0",
+    "description": "A smart automation API for managing file structure, AI diagnosis, chat-driven project creation, and CI/CD deployment."
+  },
+  "servers": [{"url": "http://localhost:5000"}],
+  "paths": {
+    "/api/files/scan": {
+      "get": {
+        "summary": "Scan file system for structure, TODOs, broken imports",
+        "tags": ["Files"],
+        "responses": {
+          "200": {
+            "description": "Scan result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scannedFiles": { "type": "integer" },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": { "type": "string" },
+                          "line": { "type": "integer" },
+                          "type": { "type": "string" },
+                          "description": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/errors": {
+      "get": {
+        "summary": "Get list of files with errors",
+        "tags": ["Files"],
+        "responses": {
+          "200": {
+            "description": "List of errors",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": { "type": "string" },
+                          "line": { "type": "integer" },
+                          "column": { "type": "integer" },
+                          "message": { "type": "string" },
+                          "severity": { "type": "string", "enum": ["error", "warning", "info"] }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/files/fix-suggestions": {
+      "post": {
+        "summary": "Suggest fixes for detected file issues",
+        "tags": ["Files"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": { "type": "string" },
+                  "errorIds": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                },
+                "required": ["file"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fix suggestions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "errorId": { "type": "string" },
+                          "file": { "type": "string" },
+                          "line": { "type": "integer" },
+                          "suggestion": { "type": "string" },
+                          "fixCode": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/import": {
+      "post": {
+        "summary": "Import chat logs or code snippets",
+        "tags": ["Chat"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source": { "type": "string", "enum": ["chatgpt", "claude", "github_copilot", "manual", "other"] },
+                  "content": { "type": "string" },
+                  "fileType": { "type": "string" }
+                },
+                "required": ["source", "content"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Import status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "fileId": { "type": "string" },
+                    "extractedFiles": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "path": { "type": "string" },
+                          "language": { "type": "string" },
+                          "codeLines": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/generate-project": {
+      "post": {
+        "summary": "Generate a new project from chat contents",
+        "tags": ["Chat"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "chatId": { "type": "string" },
+                  "projectName": { "type": "string" },
+                  "projectType": { "type": "string", "enum": ["web", "api", "cli", "data_science", "mobile", "other"] },
+                  "description": { "type": "string" }
+                },
+                "required": ["chatId", "projectName"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated project details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": { "type": "string" },
+                    "name": { "type": "string" },
+                    "path": { "type": "string" },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "path": { "type": "string" },
+                          "type": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/project/from-chat/{id}": {
+      "get": {
+        "summary": "Fetch a project generated from a chat ID",
+        "tags": ["Project"],
+        "parameters": [{
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {"type": "string"}
+        }],
+        "responses": {
+          "200": {
+            "description": "Project details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": { "type": "string" },
+                    "name": { "type": "string" },
+                    "path": { "type": "string" },
+                    "createdAt": { "type": "string", "format": "date-time" },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "path": { "type": "string" },
+                          "type": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/project/init": {
+      "post": {
+        "summary": "Initialize a new modular project folder",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "template": { "type": "string", "enum": ["web", "api", "cli", "data_science", "mobile", "empty"] },
+                  "dependencies": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                },
+                "required": ["name", "template"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project initialized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projectId": { "type": "string" },
+                    "name": { "type": "string" },
+                    "path": { "type": "string" },
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "path": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/project/add-dependency": {
+      "post": {
+        "summary": "Add a new Python dependency to project",
+        "tags": ["Project"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": { "type": "string" },
+                  "dependency": { "type": "string" },
+                  "version": { "type": "string" }
+                },
+                "required": ["projectId", "dependency"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dependency added",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "dependency": { "type": "string" },
+                    "version": { "type": "string" },
+                    "requirementsFile": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/project/list": {
+      "get": {
+        "summary": "List all modular projects",
+        "tags": ["Project"],
+        "responses": {
+          "200": {
+            "description": "List of projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "name": { "type": "string" },
+                          "path": { "type": "string" },
+                          "template": { "type": "string" },
+                          "createdAt": { "type": "string", "format": "date-time" },
+                          "lastModified": { "type": "string", "format": "date-time" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/debug/scan": {
+      "get": {
+        "summary": "Run linter or analysis on current codebase",
+        "tags": ["Debug"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Optional project ID to limit scan to specific project"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Debug report",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "scannedFiles": { "type": "integer" },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": { "type": "string" },
+                          "line": { "type": "integer" },
+                          "column": { "type": "integer" },
+                          "rule": { "type": "string" },
+                          "message": { "type": "string" },
+                          "severity": { "type": "string", "enum": ["error", "warning", "info"] }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/debug/clean": {
+      "post": {
+        "summary": "Clean formatting and unused code",
+        "tags": ["Debug"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": { "type": "string" },
+                  "actions": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["format", "remove_unused_imports", "remove_unused_variables", "optimize_imports"]
+                    }
+                  }
+                },
+                "required": ["projectId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Clean status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "filesProcessed": { "type": "integer" },
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "file": { "type": "string" },
+                          "type": { "type": "string" },
+                          "linesChanged": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/debug/fix-common-errors": {
+      "post": {
+        "summary": "Apply AI-assisted fixes for common issues",
+        "tags": ["Debug"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": { "type": "string" },
+                  "issueIds": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  },
+                  "autoApply": { "type": "boolean", "default": false }
+                },
+                "required": ["projectId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fix status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "fixes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "issueId": { "type": "string" },
+                          "file": { "type": "string" },
+                          "description": { "type": "string" },
+                          "fixApplied": { "type": "boolean" },
+                          "fixDiff": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/diagnose": {
+      "post": {
+        "summary": "Run AI diagnosis on a code file",
+        "tags": ["AI"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filePath": { "type": "string" },
+                  "fileContent": { "type": "string" }
+                },
+                "required": ["filePath"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Diagnosis result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": { "type": "string" },
+                    "quality": { "type": "number" },
+                    "issues": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "severity": { "type": "string" },
+                          "message": { "type": "string" },
+                          "line": { "type": "integer" },
+                          "column": { "type": "integer" },
+                          "suggestion": { "type": "string" }
+                        }
+                      }
+                    },
+                    "bestPractices": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/complete-code": {
+      "post": {
+        "summary": "Complete or suggest continuation for a code file",
+        "tags": ["AI"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filePath": { "type": "string" },
+                  "fileContent": { "type": "string" },
+                  "cursorPosition": {
+                    "type": "object",
+                    "properties": {
+                      "line": { "type": "integer" },
+                      "column": { "type": "integer" }
+                    }
+                  },
+                  "context": { "type": "string" }
+                },
+                "required": ["filePath", "fileContent"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "AI code suggestions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "suggestions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "code": { "type": "string" },
+                          "explanation": { "type": "string" },
+                          "confidence": { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ai/summarize-file": {
+      "post": {
+        "summary": "Summarize the purpose and structure of a file",
+        "tags": ["AI"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "filePath": { "type": "string" },
+                  "fileContent": { "type": "string" }
+                },
+                "required": ["filePath"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Summary output",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": { "type": "string" },
+                    "functions": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "description": { "type": "string" },
+                          "complexity": { "type": "string" }
+                        }
+                      }
+                    },
+                    "dependencies": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "key_concepts": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/deploy/init": {
+      "post": {
+        "summary": "Set up deployment structure and config",
+        "tags": ["Deploy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": { "type": "string" },
+                  "deploymentPlatform": { "type": "string", "enum": ["replit", "vercel", "heroku", "aws", "github_pages", "netlify"] },
+                  "environment": { "type": "string", "enum": ["development", "staging", "production"] }
+                },
+                "required": ["projectId", "deploymentPlatform"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Deployment structure initialized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "configFiles": {
+                      "type": "array",
+                      "items": { "type": "string" }
+                    },
+                    "instructions": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/deploy/github-actions": {
+      "post": {
+        "summary": "Generate GitHub Actions CI/CD workflow",
+        "tags": ["Deploy"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "projectId": { "type": "string" },
+                  "workflowName": { "type": "string" },
+                  "triggers": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["push", "pull_request", "schedule", "manual"] }
+                  },
+                  "steps": {
+                    "type": "array",
+                    "items": { "type": "string", "enum": ["test", "lint", "build", "deploy"] }
+                  }
+                },
+                "required": ["projectId", "workflowName"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "CI/CD workflow created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean" },
+                    "workflowPath": { "type": "string" },
+                    "workflowContent": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/deploy/status": {
+      "get": {
+        "summary": "Check deployment and CI/CD status",
+        "tags": ["Deploy"],
+        "parameters": [
+          {
+            "name": "projectId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deployment status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "project": { "type": "string" },
+                    "environment": { "type": "string" },
+                    "lastDeployment": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "enum": ["success", "failure", "in_progress", "idle"] },
+                        "timestamp": { "type": "string", "format": "date-time" },
+                        "url": { "type": "string" }
+                      }
+                    },
+                    "cicd": {
+                      "type": "object",
+                      "properties": {
+                        "status": { "type": "string", "enum": ["success", "failure", "in_progress", "idle"] },
+                        "lastRun": { "type": "string", "format": "date-time" },
+                        "workflow": { "type": "string" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

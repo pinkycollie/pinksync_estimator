@@ -15,11 +15,20 @@ import {
   FileWatchConfig, InsertFileWatchConfig,
   AutomationWorkflow, InsertAutomationWorkflow,
   WorkflowExecution, InsertWorkflowExecution,
+  // AI Hub Pipeline
+  Pipeline, InsertPipeline,
+  PipelineExecution, InsertPipelineExecution,
+  AiHubProject, InsertAiHubProject,
+  ProjectDeployment, InsertProjectDeployment,
   // Enums
   AiPlatform, FileCategory, FileSource, 
   IntegrationType, RecommendationType,
   IdeaStatus, ProjectStatus, MilestoneStatus,
-  TriggerType, WorkflowStatus, WorkflowStepType
+  TriggerType, WorkflowStatus, WorkflowStepType,
+  PipelineStatus, PipelineCategory,
+  ProjectType, ProjectTemplate,
+  DeploymentPlatform, DeploymentEnvironment,
+  DeploymentStatus
 } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
@@ -44,7 +53,17 @@ export type {
   // File monitoring and workflow automation
   FileWatchConfig, InsertFileWatchConfig,
   AutomationWorkflow, InsertAutomationWorkflow,
-  WorkflowExecution, InsertWorkflowExecution
+  WorkflowExecution, InsertWorkflowExecution,
+  // AI Hub Pipeline
+  Pipeline, InsertPipeline,
+  PipelineExecution, InsertPipelineExecution,
+  AiHubProject, InsertAiHubProject,
+  ProjectDeployment, InsertProjectDeployment,
+  // Enums
+  PipelineStatus, PipelineCategory,
+  ProjectType, ProjectTemplate,
+  DeploymentPlatform, DeploymentEnvironment,
+  DeploymentStatus
 };
 
 export interface IStorage {
@@ -79,6 +98,42 @@ export interface IStorage {
   getActiveRecommendations(userId: number): Promise<Recommendation[]>;
   getRecommendation(id: number): Promise<Recommendation | undefined>;
   createRecommendation(recommendation: InsertRecommendation): Promise<Recommendation>;
+  
+  // AI Hub Pipeline methods
+  getPipelines(userId: number): Promise<Pipeline[]>;
+  getPipelinesByCategory(category: string): Promise<Pipeline[]>;
+  getPipeline(id: number): Promise<Pipeline | undefined>;
+  getPipelineByName(name: string): Promise<Pipeline | undefined>;
+  createPipeline(pipeline: InsertPipeline): Promise<Pipeline>;
+  updatePipeline(id: number, pipeline: Partial<InsertPipeline>): Promise<Pipeline | undefined>;
+  deletePipeline(id: number): Promise<boolean>;
+  
+  // Pipeline Execution methods
+  executePipeline(pipelineId: number, input: any, userId: number): Promise<PipelineExecution>;
+  getPipelineExecutions(pipelineId: number): Promise<PipelineExecution[]>;
+  getRecentPipelineExecutions(userId: number, limit?: number): Promise<PipelineExecution[]>;
+  getPipelineExecution(id: number): Promise<PipelineExecution | undefined>;
+  updatePipelineExecution(id: number, execution: Partial<InsertPipelineExecution>): Promise<PipelineExecution | undefined>;
+  
+  // AI Hub Project methods
+  getAiHubProjects(userId: number): Promise<AiHubProject[]>;
+  getAiHubProjectsByType(userId: number, type: string): Promise<AiHubProject[]>;
+  getAiHubProject(id: number): Promise<AiHubProject | undefined>;
+  createAiHubProject(project: InsertAiHubProject): Promise<AiHubProject>;
+  updateAiHubProject(id: number, project: Partial<InsertAiHubProject>): Promise<AiHubProject | undefined>;
+  deleteAiHubProject(id: number): Promise<boolean>;
+  scanAiHubProject(id: number): Promise<{ success: boolean; fileCount: number; issueCount: number; result: any }>;
+  
+  // Project Deployment methods
+  getProjectDeployments(projectId: number): Promise<ProjectDeployment[]>;
+  getProjectDeployment(id: number): Promise<ProjectDeployment | undefined>;
+  createProjectDeployment(deployment: InsertProjectDeployment): Promise<ProjectDeployment>;
+  updateProjectDeployment(id: number, deployment: Partial<InsertProjectDeployment>): Promise<ProjectDeployment | undefined>;
+  
+  // AI Hub File System Operations
+  scanFileSystem(path: string, recursive?: boolean): Promise<{ files: any[]; issues: any[] }>;
+  fixCommonErrors(filePath: string, issues: any[]): Promise<{ success: boolean; fixedIssues: any[] }>;
+  convertCodeToProject(code: string, projectName: string, type: string): Promise<AiHubProject | undefined>;
   updateRecommendation(id: number, recommendation: Partial<InsertRecommendation>): Promise<Recommendation | undefined>;
   deleteRecommendation(id: number): Promise<boolean>;
   
@@ -215,6 +270,16 @@ export interface IStorage {
   getRecentWorkflowExecutions(userId: number, limit?: number): Promise<WorkflowExecution[]>;
   getWorkflowExecution(id: number): Promise<WorkflowExecution | undefined>;
   updateWorkflowExecution(id: number, execution: Partial<InsertWorkflowExecution>): Promise<WorkflowExecution | undefined>;
+  
+  // AI Hub Pipeline methods
+  getPipelines(userId: number): Promise<Pipeline[]>;
+  getPipelinesByCategory(category: string): Promise<Pipeline[]>;
+  getPipeline(id: number): Promise<Pipeline | undefined>;
+  getPipelineByName(name: string): Promise<Pipeline | undefined>;
+  createPipeline(pipeline: InsertPipeline): Promise<Pipeline>;
+  updatePipeline(id: number, pipeline: Partial<InsertPipeline>): Promise<Pipeline | undefined>;
+  deletePipeline(id: number): Promise<boolean>;
+  executePipeline(pipelineId: number, input: any, userId: number): Promise<PipelineExecution>;
 }
 
 export class MemStorage implements IStorage {
@@ -230,6 +295,12 @@ export class MemStorage implements IStorage {
   private projectPlans: Map<number, ProjectPlan>;
   private projectMilestones: Map<number, ProjectMilestone>;
   private codeSources: Map<number, CodeSource>;
+  // AI Hub specific maps
+  private pipelines: Map<number, Pipeline>;
+  private pipelineExecutions: Map<number, PipelineExecution>;
+  private aiHubProjects: Map<number, AiHubProject>;
+  private projectDeployments: Map<number, ProjectDeployment>;
+  // Counter variables
   private userIdCounter: number;
   private fileIdCounter: number;
   private integrationIdCounter: number;
@@ -244,6 +315,12 @@ export class MemStorage implements IStorage {
   private fileWatchConfigIdCounter: number;
   private automationWorkflowIdCounter: number;
   private workflowExecutionIdCounter: number;
+  // AI Hub specific counters
+  private pipelineIdCounter: number;
+  private pipelineExecutionIdCounter: number;
+  private aiHubProjectIdCounter: number;
+  private projectDeploymentIdCounter: number;
+  // Maps for file watching and automation
   private fileWatchConfigs: Map<number, FileWatchConfig>;
   private automationWorkflows: Map<number, AutomationWorkflow>;
   private workflowExecutions: Map<number, WorkflowExecution>;
@@ -270,6 +347,12 @@ export class MemStorage implements IStorage {
     this.automationWorkflows = new Map();
     this.workflowExecutions = new Map();
     
+    // Initialize AI Hub maps
+    this.pipelines = new Map();
+    this.pipelineExecutions = new Map();
+    this.aiHubProjects = new Map();
+    this.projectDeployments = new Map();
+    
     // Initialize ID counters
     this.userIdCounter = 1;
     this.fileIdCounter = 1;
@@ -285,6 +368,18 @@ export class MemStorage implements IStorage {
     this.fileWatchConfigIdCounter = 1;
     this.automationWorkflowIdCounter = 1;
     this.workflowExecutionIdCounter = 1;
+    
+    // Initialize AI Hub counters
+    this.pipelineIdCounter = 1;
+    this.pipelineExecutionIdCounter = 1;
+    this.aiHubProjectIdCounter = 1;
+    this.projectDeploymentIdCounter = 1;
+    
+    // Initialize AI Hub counters
+    this.pipelineIdCounter = 1;
+    this.pipelineExecutionIdCounter = 1;
+    this.aiHubProjectIdCounter = 1;
+    this.projectDeploymentIdCounter = 1;
     
     // Add sample file watch configurations
     this.createFileWatchConfig({
@@ -332,6 +427,190 @@ export class MemStorage implements IStorage {
       password: "password",
       displayName: "Pinky Kim",
       email: "pinky@example.com"
+    });
+    
+    // Initialize sample AI Hub pipelines
+    this.createPipeline({
+      name: "Text Analysis Pipeline",
+      description: "Analyzes text for sentiment, topics, and entities",
+      category: PipelineCategory.TEXT_ANALYSIS,
+      userId: 1,
+      configSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          model: {
+            type: "string",
+            enum: ["basic", "advanced"],
+            default: "basic"
+          },
+          includeEntities: {
+            type: "boolean",
+            default: true
+          }
+        }
+      }),
+      inputSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "The text to analyze"
+          }
+        },
+        required: ["text"]
+      }),
+      outputSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          sentiment: {
+            type: "string",
+            enum: ["positive", "negative", "neutral"]
+          },
+          topics: {
+            type: "array",
+            items: {
+              type: "string"
+            }
+          },
+          entities: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                type: { type: "string" },
+                name: { type: "string" },
+                count: { type: "number" }
+              }
+            }
+          }
+        }
+      }),
+      implementation: "function analyze(input, config) { /* Implementation code here */ }",
+      isPublic: true
+    });
+    
+    this.createPipeline({
+      name: "Data Transformation Pipeline",
+      description: "Transforms JSON data according to specified rules",
+      category: PipelineCategory.DATA_TRANSFORMATION,
+      userId: 1,
+      configSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          transformations: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                field: { type: "string" },
+                operation: { 
+                  type: "string",
+                  enum: ["rename", "delete", "modify"]
+                },
+                value: { type: "string" }
+              }
+            }
+          }
+        }
+      }),
+      inputSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          data: {
+            type: "array",
+            items: {
+              type: "object"
+            }
+          }
+        },
+        required: ["data"]
+      }),
+      isPublic: true
+    });
+    
+    this.createPipeline({
+      name: "File Conversion Pipeline",
+      description: "Converts files between different formats",
+      category: PipelineCategory.FILE_CONVERSION,
+      userId: 1,
+      configSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          quality: {
+            type: "string",
+            enum: ["low", "medium", "high"],
+            default: "medium"
+          }
+        }
+      }),
+      inputSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          fileName: {
+            type: "string",
+            description: "The name of the file to convert"
+          },
+          targetFormat: {
+            type: "string",
+            enum: ["pdf", "docx", "txt", "html", "md"]
+          }
+        },
+        required: ["fileName", "targetFormat"]
+      }),
+      isPublic: true
+    });
+    
+    this.createPipeline({
+      name: "Git Repository Analysis",
+      description: "Analyzes Git repositories for stats and issues",
+      category: PipelineCategory.GIT_REPOSITORY,
+      userId: 1,
+      configSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          depth: {
+            type: "number",
+            default: 10,
+            description: "Number of commits to analyze"
+          },
+          checkStyle: {
+            type: "boolean",
+            default: true
+          }
+        }
+      }),
+      inputSchema: JSON.stringify({
+        type: "object",
+        properties: {
+          repoUrl: {
+            type: "string",
+            description: "The URL of the Git repository"
+          },
+          branch: {
+            type: "string",
+            default: "main"
+          }
+        },
+        required: ["repoUrl"]
+      }),
+      isPublic: true
+    });
+    
+    // Initialize sample AI Hub project
+    this.createAiHubProject({
+      name: "Sample Web App",
+      description: "A sample React web application with API integration",
+      type: ProjectType.WEB,
+      template: ProjectTemplate.WEB,
+      userId: 1,
+      status: "IN_PROGRESS",
+      localPath: "/projects/sample-web-app",
+      config: {
+        framework: "react",
+        styling: "tailwind",
+        features: ["authentication", "database", "api"]
+      },
+      isPublic: true
     });
   }
 
@@ -1964,6 +2243,431 @@ export class MemStorage implements IStorage {
 
   async deleteWorkflowExecution(id: number): Promise<boolean> {
     return this.workflowExecutions.delete(id);
+  }
+
+  // AI Hub Pipeline methods
+  async getPipelines(userId: number): Promise<Pipeline[]> {
+    return Array.from(this.pipelines.values()).filter(
+      (pipeline) => pipeline.userId === userId,
+    );
+  }
+
+  async getPipelinesByCategory(category: string): Promise<Pipeline[]> {
+    return Array.from(this.pipelines.values()).filter(
+      (pipeline) => pipeline.category === category,
+    );
+  }
+
+  async getPipeline(id: number): Promise<Pipeline | undefined> {
+    return this.pipelines.get(id);
+  }
+
+  async getPipelineByName(name: string): Promise<Pipeline | undefined> {
+    return Array.from(this.pipelines.values()).find(
+      (pipeline) => pipeline.name === name,
+    );
+  }
+
+  async createPipeline(pipeline: InsertPipeline): Promise<Pipeline> {
+    const id = this.pipelineIdCounter++;
+    const newPipeline: Pipeline = {
+      id,
+      name: pipeline.name,
+      description: pipeline.description || null,
+      inputType: pipeline.inputType,
+      outputType: pipeline.outputType,
+      steps: pipeline.steps,
+      isActive: pipeline.isActive !== undefined ? pipeline.isActive : true,
+      createdAt: pipeline.createdAt || new Date(),
+      updatedAt: pipeline.updatedAt || new Date(),
+      createdBy: pipeline.createdBy,
+      category: pipeline.category || null,
+      tags: pipeline.tags || null,
+      metadata: pipeline.metadata || null,
+      configSchema: pipeline.configSchema || null,
+    };
+    this.pipelines.set(id, newPipeline);
+    return newPipeline;
+  }
+
+  async updatePipeline(id: number, pipeline: Partial<InsertPipeline>): Promise<Pipeline | undefined> {
+    const existingPipeline = this.pipelines.get(id);
+    if (!existingPipeline) return undefined;
+
+    const updatedPipeline = { 
+      ...existingPipeline, 
+      ...pipeline,
+      updatedAt: new Date()
+    };
+    this.pipelines.set(id, updatedPipeline);
+    return updatedPipeline;
+  }
+
+  async deletePipeline(id: number): Promise<boolean> {
+    return this.pipelines.delete(id);
+  }
+
+  async executePipeline(pipelineId: number, input: any, userId: number): Promise<PipelineExecution> {
+    const pipeline = await this.getPipeline(pipelineId);
+    if (!pipeline) {
+      throw new Error(`Pipeline with ID ${pipelineId} not found`);
+    }
+
+    const id = this.pipelineExecutionIdCounter++;
+    const execution: PipelineExecution = {
+      id,
+      pipelineId,
+      userId,
+      input,
+      output: null,
+      status: PipelineStatus.RUNNING,
+      startTime: new Date(),
+      endTime: null,
+      duration: null,
+      error: null,
+      logs: [{
+        timestamp: new Date().toISOString(),
+        level: "INFO",
+        message: `Pipeline execution started: ${pipeline.name}`
+      }],
+      metadata: null
+    };
+
+    this.pipelineExecutions.set(id, execution);
+
+    // Simulate pipeline execution (asynchronously)
+    setTimeout(async () => {
+      try {
+        // In a real implementation, this would execute the actual pipeline logic
+        // based on pipeline.implementation
+        
+        // For demonstration purposes, we'll create sample outputs based on pipeline category
+        let output: any;
+        
+        switch (pipeline.category) {
+          case PipelineCategory.TEXT_ANALYSIS:
+            output = {
+              sentiment: Math.random() > 0.5 ? "positive" : "negative",
+              topics: ["business", "technology", "AI"],
+              summary: "This is a sample text analysis result.",
+              entities: [
+                { type: "person", name: "John Doe", count: 3 },
+                { type: "organization", name: "Acme Corp", count: 2 }
+              ]
+            };
+            break;
+            
+          case PipelineCategory.DATA_TRANSFORMATION:
+            output = {
+              transformedData: input.data.map((item: any) => ({ 
+                ...item, 
+                processed: true,
+                score: Math.random() * 100
+              })),
+              stats: {
+                processed: input.data.length,
+                filtered: Math.floor(input.data.length * 0.2),
+                enhanced: Math.floor(input.data.length * 0.8)
+              }
+            };
+            break;
+            
+          case PipelineCategory.FILE_CONVERSION:
+            output = {
+              convertedFile: {
+                name: input.fileName.replace(/\.\w+$/, '.converted'),
+                size: Math.floor(Math.random() * 1000000),
+                format: input.targetFormat || "pdf",
+                url: `https://example.com/files/${input.fileName.replace(/\.\w+$/, '.converted')}`
+              }
+            };
+            break;
+            
+          case PipelineCategory.GIT_REPOSITORY:
+            output = {
+              repoStats: {
+                commits: Math.floor(Math.random() * 1000),
+                branches: Math.floor(Math.random() * 10) + 1,
+                contributors: Math.floor(Math.random() * 5) + 1,
+                lastCommit: new Date().toISOString()
+              },
+              analyzedFiles: Math.floor(Math.random() * 100) + 10,
+              issues: Math.floor(Math.random() * 20)
+            };
+            break;
+            
+          default:
+            output = { result: "Sample pipeline output", timestamp: new Date().toISOString() };
+        }
+
+        // Update the execution with success
+        const updatedExecution = {
+          ...execution,
+          status: PipelineStatus.COMPLETED,
+          endTime: new Date(),
+          duration: 2000, // Simulated execution time in ms
+          output: output,
+          logs: [...execution.logs, {
+            timestamp: new Date().toISOString(),
+            level: "INFO",
+            message: `Pipeline execution completed successfully: ${pipeline.name}`
+          }]
+        };
+        
+        this.pipelineExecutions.set(id, updatedExecution);
+        
+      } catch (error: any) {
+        // Update the execution with error
+        const updatedExecution = {
+          ...execution,
+          status: PipelineStatus.FAILED,
+          endTime: new Date(),
+          duration: 2000, // Simulated execution time in ms
+          error: error.message || "Unknown error during pipeline execution",
+          logs: [...execution.logs, {
+            timestamp: new Date().toISOString(),
+            level: "ERROR",
+            message: `Pipeline execution failed: ${error.message || "Unknown error"}`
+          }]
+        };
+        
+        this.pipelineExecutions.set(id, updatedExecution);
+      }
+    }, 2000); // Simulate 2 second processing time
+    
+    return execution;
+  }
+
+  // Pipeline Execution methods
+  async getPipelineExecutions(pipelineId: number): Promise<PipelineExecution[]> {
+    return Array.from(this.pipelineExecutions.values()).filter(
+      (execution) => execution.pipelineId === pipelineId,
+    );
+  }
+
+  async getRecentPipelineExecutions(userId: number, limit: number = 10): Promise<PipelineExecution[]> {
+    return Array.from(this.pipelineExecutions.values())
+      .filter((execution) => execution.userId === userId)
+      .sort((a, b) => {
+        const dateA = new Date(a.startTime).getTime();
+        const dateB = new Date(b.startTime).getTime();
+        return dateB - dateA;
+      })
+      .slice(0, limit);
+  }
+
+  async getPipelineExecution(id: number): Promise<PipelineExecution | undefined> {
+    return this.pipelineExecutions.get(id);
+  }
+
+  async updatePipelineExecution(id: number, execution: Partial<InsertPipelineExecution>): Promise<PipelineExecution | undefined> {
+    const existingExecution = this.pipelineExecutions.get(id);
+    if (!existingExecution) return undefined;
+
+    const updatedExecution = { ...existingExecution, ...execution };
+    this.pipelineExecutions.set(id, updatedExecution);
+    return updatedExecution;
+  }
+
+  // AI Hub Project methods
+  async getAiHubProjects(userId: number): Promise<AiHubProject[]> {
+    return Array.from(this.aiHubProjects.values()).filter(
+      (project) => project.userId === userId,
+    );
+  }
+
+  async getAiHubProjectsByType(userId: number, type: string): Promise<AiHubProject[]> {
+    return Array.from(this.aiHubProjects.values()).filter(
+      (project) => project.userId === userId && project.type === type,
+    );
+  }
+
+  async getAiHubProject(id: number): Promise<AiHubProject | undefined> {
+    return this.aiHubProjects.get(id);
+  }
+
+  async createAiHubProject(project: InsertAiHubProject): Promise<AiHubProject> {
+    const id = this.aiHubProjectIdCounter++;
+    const newProject: AiHubProject = {
+      id,
+      name: project.name,
+      description: project.description || null,
+      type: project.type,
+      template: project.template || null,
+      userId: project.userId,
+      status: project.status || "IN_PROGRESS",
+      repositoryUrl: project.repositoryUrl || null,
+      localPath: project.localPath || null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      lastBuildAt: null,
+      config: project.config || null,
+      apiSpec: project.apiSpec || null,
+      isPublic: project.isPublic || false,
+      tags: project.tags || null
+    };
+    this.aiHubProjects.set(id, newProject);
+    return newProject;
+  }
+
+  async updateAiHubProject(id: number, project: Partial<InsertAiHubProject>): Promise<AiHubProject | undefined> {
+    const existingProject = this.aiHubProjects.get(id);
+    if (!existingProject) return undefined;
+
+    const updatedProject = { 
+      ...existingProject, 
+      ...project,
+      updatedAt: new Date()
+    };
+    this.aiHubProjects.set(id, updatedProject);
+    return updatedProject;
+  }
+
+  async deleteAiHubProject(id: number): Promise<boolean> {
+    return this.aiHubProjects.delete(id);
+  }
+
+  async scanAiHubProject(id: number): Promise<{ success: boolean; fileCount: number; issueCount: number; result: any }> {
+    const project = await this.getAiHubProject(id);
+    if (!project) {
+      throw new Error(`Project with ID ${id} not found`);
+    }
+
+    // Simulate project scanning
+    // In a real implementation, this would analyze the project files
+    
+    const fileCount = Math.floor(Math.random() * 50) + 10;
+    const issueCount = Math.floor(Math.random() * 10);
+    
+    const issues = Array.from({ length: issueCount }, (_, i) => ({
+      id: i + 1,
+      type: ['ERROR', 'WARNING', 'INFO'][Math.floor(Math.random() * 3)],
+      file: `src/components/Component${Math.floor(Math.random() * 10)}.tsx`,
+      line: Math.floor(Math.random() * 200) + 1,
+      message: `Sample issue ${i + 1} in project scan`,
+      code: `code-${Math.floor(Math.random() * 1000)}`
+    }));
+
+    const result = {
+      scannedAt: new Date().toISOString(),
+      summary: {
+        fileCount,
+        issueCount,
+        errorCount: issues.filter(i => i.type === 'ERROR').length,
+        warningCount: issues.filter(i => i.type === 'WARNING').length,
+        infoCount: issues.filter(i => i.type === 'INFO').length
+      },
+      issues
+    };
+    
+    return {
+      success: true,
+      fileCount,
+      issueCount,
+      result
+    };
+  }
+
+  // Project Deployment methods
+  async getProjectDeployments(projectId: number): Promise<ProjectDeployment[]> {
+    return Array.from(this.projectDeployments.values()).filter(
+      (deployment) => deployment.projectId === projectId,
+    );
+  }
+
+  async getProjectDeployment(id: number): Promise<ProjectDeployment | undefined> {
+    return this.projectDeployments.get(id);
+  }
+
+  async createProjectDeployment(deployment: InsertProjectDeployment): Promise<ProjectDeployment> {
+    const id = this.projectDeploymentIdCounter++;
+    const newDeployment: ProjectDeployment = {
+      id,
+      projectId: deployment.projectId,
+      platform: deployment.platform,
+      environment: deployment.environment || DeploymentEnvironment.DEVELOPMENT,
+      status: deployment.status || DeploymentStatus.PENDING,
+      deployedAt: new Date(),
+      deployedBy: deployment.deployedBy,
+      config: deployment.config || null,
+      url: deployment.url || null,
+      version: deployment.version || "1.0.0",
+      logs: deployment.logs || null
+    };
+    this.projectDeployments.set(id, newDeployment);
+    return newDeployment;
+  }
+
+  async updateProjectDeployment(id: number, deployment: Partial<InsertProjectDeployment>): Promise<ProjectDeployment | undefined> {
+    const existingDeployment = this.projectDeployments.get(id);
+    if (!existingDeployment) return undefined;
+
+    const updatedDeployment = { ...existingDeployment, ...deployment };
+    this.projectDeployments.set(id, updatedDeployment);
+    return updatedDeployment;
+  }
+
+  // AI Hub File System Operations
+  async scanFileSystem(path: string, recursive: boolean = true): Promise<{ files: any[]; issues: any[] }> {
+    // Simulate filesystem scanning
+    // In a real implementation, this would scan the actual filesystem
+    
+    const fileCount = Math.floor(Math.random() * 30) + 5;
+    const issueCount = Math.floor(Math.random() * 5);
+    
+    const files = Array.from({ length: fileCount }, (_, i) => ({
+      name: `file_${i + 1}.${['js', 'ts', 'json', 'md', 'txt'][Math.floor(Math.random() * 5)]}`,
+      path: `${path}/${['src', 'docs', 'config', ''][Math.floor(Math.random() * 4)]}`,
+      size: Math.floor(Math.random() * 50000),
+      lastModified: new Date(Date.now() - Math.floor(Math.random() * 30) * 24 * 60 * 60 * 1000).toISOString(),
+      type: ['file', 'directory'][Math.floor(Math.random() * 2)]
+    }));
+    
+    const issues = Array.from({ length: issueCount }, (_, i) => ({
+      id: i + 1,
+      path: `${path}/${files[Math.floor(Math.random() * files.length)].name}`,
+      type: ['permission_denied', 'not_found', 'read_error'][Math.floor(Math.random() * 3)],
+      message: `Sample filesystem issue ${i + 1}`
+    }));
+    
+    return {
+      files,
+      issues
+    };
+  }
+
+  async fixCommonErrors(filePath: string, issues: any[]): Promise<{ success: boolean; fixedIssues: any[] }> {
+    // Simulate fixing errors
+    // In a real implementation, this would attempt to fix the actual issues
+    
+    const fixedIssues = issues.filter(() => Math.random() > 0.3).map(issue => ({
+      ...issue,
+      fixed: true,
+      fixedAt: new Date().toISOString()
+    }));
+    
+    return {
+      success: fixedIssues.length > 0,
+      fixedIssues
+    };
+  }
+
+  async convertCodeToProject(code: string, projectName: string, type: string): Promise<AiHubProject | undefined> {
+    // Simulate code to project conversion
+    // In a real implementation, this would analyze the code and create a proper project
+    
+    const project = await this.createAiHubProject({
+      name: projectName,
+      description: `Project created from code snippet on ${new Date().toISOString()}`,
+      type: type as ProjectType,
+      template: ProjectTemplate.EMPTY,
+      userId: 1, // Default user
+      status: "IN_PROGRESS",
+      localPath: `/projects/${projectName.toLowerCase().replace(/\s+/g, '-')}`,
+      config: { sourceCode: code.substring(0, 100) + '...' } // Store a snippet of the code
+    });
+    
+    return project;
   }
 }
 

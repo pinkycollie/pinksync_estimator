@@ -1,5 +1,11 @@
 # Technical Report: AI OS Platform
 
+[![Built with Replit](https://img.shields.io/badge/Built_with-Replit-9668E2.svg)](https://replit.com)
+
+
+
+[![Built with Replit](https://img.shields.io/badge/Built_with-Replit-9668E2.svg)](https://replit.com)
+
 ## Executive Summary
 
 This report documents the architecture, implementation details, and deployment strategy for the AI OS Platform - a multi-platform synchronization and AI-powered productivity system. The platform seamlessly integrates file systems across multiple devices (Windows, Ubuntu, iOS, Dropbox, Google Drive), processes unstructured data using AI services, and provides automation capabilities for enhanced productivity.

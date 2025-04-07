@@ -14,6 +14,7 @@ import chatHistoryRouter from "./routes/chatHistory";
 import entrepreneurRouter from "./routes/entrepreneur";
 import pipelineRouter from "./routes/pipeline";
 import automationRouter from "./routes/automation";
+import aiHubRouter from "./routes/ai-hub";
 
 // Set up storage with PostgreSQL by default, with fallbacks
 let activeStorage: IStorage = storage; // PostgreSQL database storage by default
@@ -93,6 +94,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/entrepreneur', entrepreneurRouter);
   app.use('/api/pipeline', pipelineRouter);
   app.use('/api/automation', automationRouter);
+  app.use('/api/ai-hub', aiHubRouter);
   
   // Initialize automation services
   console.log("Starting file monitoring and automation services...");

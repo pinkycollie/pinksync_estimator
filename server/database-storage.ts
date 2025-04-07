@@ -13,6 +13,11 @@ import {
   FileWatchConfig, InsertFileWatchConfig,
   AutomationWorkflow, InsertAutomationWorkflow,
   WorkflowExecution, InsertWorkflowExecution,
+  // AI Hub types
+  Pipeline, InsertPipeline,
+  PipelineExecution, InsertPipelineExecution,
+  AiHubProject, InsertAiHubProject,
+  ProjectDeployment, InsertProjectDeployment,
   // Schemas
   users, files, integrations, recommendations,
   aiChatHistories, aiChatMessages, 
@@ -20,7 +25,8 @@ import {
   projectPlans, projectMilestones, codeSources,
   fileWatchConfigs, automationWorkflows, workflowExecutions,
   // Enums
-  TriggerType, WorkflowStatus
+  TriggerType, WorkflowStatus, PipelineStatus, PipelineCategory,
+  ProjectType, ProjectTemplate, DeploymentStatus, DeploymentEnvironment
 } from "@shared/schema";
 
 import { IStorage } from "./storage";
@@ -1240,3 +1246,147 @@ function or(...conditions: any[]): any {
 function getSafeMessage(message?: string): string {
   return message || 'Unknown error';
 }
+
+// AI Hub Pipeline methods - temporary implementations using memStorage until database schema is updated
+import { memStorage } from './storage';
+
+// AI Hub Pipeline methods
+async function getPipelines(userId: number): Promise<Pipeline[]> {
+  return memStorage.getPipelines(userId);
+}
+
+async function getPipelinesByCategory(category: string): Promise<Pipeline[]> {
+  return memStorage.getPipelinesByCategory(category);
+}
+
+async function getPipeline(id: number): Promise<Pipeline | undefined> {
+  return memStorage.getPipeline(id);
+}
+
+async function getPipelineByName(name: string): Promise<Pipeline | undefined> {
+  return memStorage.getPipelineByName(name);
+}
+
+async function createPipeline(pipeline: InsertPipeline): Promise<Pipeline> {
+  return memStorage.createPipeline(pipeline);
+}
+
+async function updatePipeline(id: number, pipeline: Partial<InsertPipeline>): Promise<Pipeline | undefined> {
+  return memStorage.updatePipeline(id, pipeline);
+}
+
+async function deletePipeline(id: number): Promise<boolean> {
+  return memStorage.deletePipeline(id);
+}
+
+async function executePipeline(pipelineId: number, input: any, userId: number): Promise<PipelineExecution> {
+  return memStorage.executePipeline(pipelineId, input, userId);
+}
+
+// Pipeline Execution methods
+async function getPipelineExecutions(pipelineId: number): Promise<PipelineExecution[]> {
+  return memStorage.getPipelineExecutions(pipelineId);
+}
+
+async function getRecentPipelineExecutions(userId: number, limit: number = 10): Promise<PipelineExecution[]> {
+  return memStorage.getRecentPipelineExecutions(userId, limit);
+}
+
+async function getPipelineExecution(id: number): Promise<PipelineExecution | undefined> {
+  return memStorage.getPipelineExecution(id);
+}
+
+async function updatePipelineExecution(id: number, execution: Partial<InsertPipelineExecution>): Promise<PipelineExecution | undefined> {
+  return memStorage.updatePipelineExecution(id, execution);
+}
+
+// AI Hub Project methods
+async function getAiHubProjects(userId: number): Promise<AiHubProject[]> {
+  return memStorage.getAiHubProjects(userId);
+}
+
+async function getAiHubProjectsByType(userId: number, type: string): Promise<AiHubProject[]> {
+  return memStorage.getAiHubProjectsByType(userId, type);
+}
+
+async function getAiHubProject(id: number): Promise<AiHubProject | undefined> {
+  return memStorage.getAiHubProject(id);
+}
+
+async function createAiHubProject(project: InsertAiHubProject): Promise<AiHubProject> {
+  return memStorage.createAiHubProject(project);
+}
+
+async function updateAiHubProject(id: number, project: Partial<InsertAiHubProject>): Promise<AiHubProject | undefined> {
+  return memStorage.updateAiHubProject(id, project);
+}
+
+async function deleteAiHubProject(id: number): Promise<boolean> {
+  return memStorage.deleteAiHubProject(id);
+}
+
+async function scanAiHubProject(id: number): Promise<{ success: boolean; fileCount: number; issueCount: number; result: any }> {
+  return memStorage.scanAiHubProject(id);
+}
+
+// Project Deployment methods
+async function getProjectDeployments(projectId: number): Promise<ProjectDeployment[]> {
+  return memStorage.getProjectDeployments(projectId);
+}
+
+async function getProjectDeployment(id: number): Promise<ProjectDeployment | undefined> {
+  return memStorage.getProjectDeployment(id);
+}
+
+async function createProjectDeployment(deployment: InsertProjectDeployment): Promise<ProjectDeployment> {
+  return memStorage.createProjectDeployment(deployment);
+}
+
+async function updateProjectDeployment(id: number, deployment: Partial<InsertProjectDeployment>): Promise<ProjectDeployment | undefined> {
+  return memStorage.updateProjectDeployment(id, deployment);
+}
+
+// AI Hub File System Operations
+async function scanFileSystem(path: string, recursive: boolean = true): Promise<{ files: any[]; issues: any[] }> {
+  return memStorage.scanFileSystem(path, recursive);
+}
+
+async function fixCommonErrors(filePath: string, issues: any[]): Promise<{ success: boolean; fixedIssues: any[] }> {
+  return memStorage.fixCommonErrors(filePath, issues);
+}
+
+async function convertCodeToProject(code: string, projectName: string, type: string): Promise<AiHubProject | undefined> {
+  return memStorage.convertCodeToProject(code, projectName, type);
+}
+
+// Add these methods to the DatabaseStorage class prototype
+DatabaseStorage.prototype.getPipelines = getPipelines;
+DatabaseStorage.prototype.getPipelinesByCategory = getPipelinesByCategory;
+DatabaseStorage.prototype.getPipeline = getPipeline;
+DatabaseStorage.prototype.getPipelineByName = getPipelineByName;
+DatabaseStorage.prototype.createPipeline = createPipeline;
+DatabaseStorage.prototype.updatePipeline = updatePipeline;
+DatabaseStorage.prototype.deletePipeline = deletePipeline;
+DatabaseStorage.prototype.executePipeline = executePipeline;
+
+DatabaseStorage.prototype.getPipelineExecutions = getPipelineExecutions;
+DatabaseStorage.prototype.getRecentPipelineExecutions = getRecentPipelineExecutions;
+DatabaseStorage.prototype.getPipelineExecution = getPipelineExecution;
+DatabaseStorage.prototype.updatePipelineExecution = updatePipelineExecution;
+
+DatabaseStorage.prototype.getAiHubProjects = getAiHubProjects;
+DatabaseStorage.prototype.getAiHubProjectsByType = getAiHubProjectsByType;
+DatabaseStorage.prototype.getAiHubProject = getAiHubProject;
+DatabaseStorage.prototype.createAiHubProject = createAiHubProject;
+DatabaseStorage.prototype.updateAiHubProject = updateAiHubProject;
+DatabaseStorage.prototype.deleteAiHubProject = deleteAiHubProject;
+DatabaseStorage.prototype.scanAiHubProject = scanAiHubProject;
+
+DatabaseStorage.prototype.getProjectDeployments = getProjectDeployments;
+DatabaseStorage.prototype.getProjectDeployment = getProjectDeployment;
+DatabaseStorage.prototype.createProjectDeployment = createProjectDeployment;
+DatabaseStorage.prototype.updateProjectDeployment = updateProjectDeployment;
+
+DatabaseStorage.prototype.scanFileSystem = scanFileSystem;
+DatabaseStorage.prototype.fixCommonErrors = fixCommonErrors;
+DatabaseStorage.prototype.convertCodeToProject = convertCodeToProject;

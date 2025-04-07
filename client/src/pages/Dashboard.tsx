@@ -9,6 +9,7 @@ import RecentFiles from '@/components/dashboard/RecentFiles';
 import Integrations from '@/components/dashboard/Integrations';
 import EntrepreneurIdeas from '@/components/dashboard/EntrepreneurIdeas';
 import ProjectPipeline from '@/components/dashboard/ProjectPipeline';
+import AIHub from '@/components/dashboard/AIHub';
 import ThemeToggle from '@/components/ThemeToggle';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -40,6 +41,16 @@ export default function Dashboard() {
   
   // Get authenticated user data
   const { user: authUser, isAuthenticated } = useAuth();
+  
+  // Define the auth user type
+  interface AuthUser {
+    username?: string;
+    email?: string;
+    profile_image_url?: string;
+  }
+  
+  // Ensure authUser is typed correctly
+  const typedAuthUser = (authUser as AuthUser) || {} as AuthUser;
   
   // Fetch app user data
   const { data: user } = useQuery({
@@ -86,23 +97,23 @@ export default function Dashboard() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-8 w-8 rounded-full">
                     <Avatar className="h-8 w-8">
-                      {authUser?.profile_image_url && (
+                      {typedAuthUser.profile_image_url && (
                         <AvatarImage 
-                          src={authUser.profile_image_url} 
-                          alt={authUser.username || "User avatar"} 
+                          src={typedAuthUser.profile_image_url} 
+                          alt={typedAuthUser.username || "User avatar"} 
                         />
                       )}
-                      <AvatarFallback>{authUser?.username?.substring(0, 2) || "U"}</AvatarFallback>
+                      <AvatarFallback>{typedAuthUser.username?.substring(0, 2) || "U"}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="w-56" align="end" forceMount>
                   <div className="flex flex-col space-y-1 p-2">
                     <p className="text-sm font-medium leading-none">
-                      {authUser?.username || "User"}
+                      {typedAuthUser.username || "User"}
                     </p>
                     <p className="text-xs leading-none text-muted-foreground">
-                      {authUser?.email || ""}
+                      {typedAuthUser.email || ""}
                     </p>
                   </div>
                   <DropdownMenuSeparator />
@@ -132,6 +143,9 @@ export default function Dashboard() {
               <AIRecommendations />
             </div>
           </div>
+          
+          {/* AI Hub */}
+          <AIHub />
           
           {/* Project Pipeline */}
           <ProjectPipeline />
