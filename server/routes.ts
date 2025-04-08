@@ -15,6 +15,7 @@ import entrepreneurRouter from "./routes/entrepreneur";
 import pipelineRouter from "./routes/pipeline";
 import automationRouter from "./routes/automation";
 import aiHubRouter from "./routes/ai-hub";
+import moduleRouter from "./api/module-routes";
 import { setupCustomDomain, customDomain } from "./customDomain";
 
 // Set up storage with PostgreSQL by default
@@ -106,6 +107,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/pipeline', pipelineRouter);
   app.use('/api/automation', automationRouter);
   app.use('/api/ai-hub', aiHubRouter);
+  app.use('/api/modules', moduleRouter);
   
   // Initialize automation services
   console.log("Starting file monitoring and automation services...");
