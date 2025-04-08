@@ -304,6 +304,84 @@ export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutio
   id: true,
 });
 
+// Document Categories enum
+export enum DocumentCategory {
+  PERSONAL = "personal",
+  LEGAL = "legal",
+  TAX = "tax",
+  INSURANCE = "insurance",
+  OTHER = "other",
+}
+
+// Document Status enum
+export enum DocumentStatus {
+  DRAFT = "draft",
+  ACTIVE = "active",
+  ARCHIVED = "archived",
+  EXPIRED = "expired",
+  PENDING_REVIEW = "pending_review",
+}
+
+// Document schema
+export const documents = pgTable("documents", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  category: text("category").notNull(), // From DocumentCategory enum
+  status: text("status").notNull().default('active'), // From DocumentStatus enum
+  fileId: integer("file_id"), // Optional reference to files table
+  tags: text("tags"), // Comma-separated tags
+  expirationDate: timestamp("expiration_date"),
+  reminderDate: timestamp("reminder_date"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  metadata: jsonb("metadata"), // Additional document metadata
+  isConfidential: boolean("is_confidential").default(false),
+  contentVector: jsonb("content_vector"), // For semantic search
+  version: integer("version").notNull().default(1), // Document version
+});
+
+export const insertDocumentSchema = createInsertSchema(documents).omit({
+  id: true,
+  contentVector: true,
+});
+
+// Document Version history
+export const documentVersions = pgTable("document_versions", {
+  id: serial("id").primaryKey(),
+  documentId: integer("document_id").notNull(),
+  version: integer("version").notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  fileId: integer("file_id"), // Optional reference to files table
+  metadata: jsonb("metadata"), // Additional document metadata
+  changedBy: integer("changed_by").notNull(), // User ID who made the change
+  changeLog: text("change_log"), // Description of changes
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({
+  id: true,
+});
+
+// Document Metrics
+export const documentMetrics = pgTable("document_metrics", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  categoryName: text("category_name").notNull(), // personal, legal, tax, insurance
+  totalCount: integer("total_count").notNull().default(0),
+  activeCount: integer("active_count").notNull().default(0),
+  expiredCount: integer("expired_count").notNull().default(0),
+  expiringCount: integer("expiring_count").notNull().default(0), // Expiring within 30 days
+  avgVersions: integer("avg_versions").notNull().default(1),
+  lastUpdated: timestamp("last_updated").notNull().defaultNow(),
+});
+
+export const insertDocumentMetricsSchema = createInsertSchema(documentMetrics).omit({
+  id: true,
+});
+
 // Export types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
