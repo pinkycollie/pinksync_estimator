@@ -1,322 +1,738 @@
-import fs from 'fs';
-import path from 'path';
+import { Dropbox, files as DropboxFiles } from 'dropbox';
+import SFTPClient from 'ssh2-sftp-client';
+import fetch from 'node-fetch';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { storage } from '../storage';
+import { 
+  SyncStatus,
+  PlatformConnection,
+  PlatformType,
+  SyncDirection,
+  InsertSyncOperation,
+  SyncItem,
+  InsertSyncItem
+} from '../../shared/platformSyncSchema';
+import { processFile } from './documentUtils';
 
 /**
- * Platform type enum for different supported platforms
+ * Type definitions for file metadata across different platforms
  */
-export enum PlatformType {
-  DROPBOX = 'dropbox',
-  IOS = 'ios',
-  UBUNTU = 'ubuntu',
-  WINDOWS = 'windows',
-  WEB = 'web'
-}
-
-/**
- * Sync direction enum
- */
-export enum SyncDirection {
-  UPLOAD = 'upload', // Local to remote
-  DOWNLOAD = 'download', // Remote to local
-  BIDIRECTIONAL = 'bidirectional' // Both ways
-}
-
-/**
- * Sync status enum
- */
-export enum SyncStatus {
-  PENDING = 'pending',
-  IN_PROGRESS = 'in_progress',
-  COMPLETED = 'completed',
-  FAILED = 'failed',
-  CONFLICT = 'conflict'
-}
-
-/**
- * Sync item interface representing a file or folder being synchronized
- */
-export interface SyncItem {
-  id: string;
-  path: string; // Full path including filename
+type FileMetadata = {
+  path: string;
+  size: number;
   isDirectory: boolean;
-  size?: number; // For files
-  mimeType?: string; // For files
-  hash?: string; // Content hash for change detection
-  lastModified: Date;
-  lastSynced?: Date;
-  syncStatus: SyncStatus;
-  platformSpecificData?: Record<string, any>; // Platform-specific metadata
-  conflictResolution?: 'local' | 'remote' | 'rename' | 'manual';
-}
+  modifiedTime: Date;
+  hash?: string;
+  mimeType?: string;
+};
+
+type ConflictResolution = 'local' | 'remote' | 'rename' | 'manual';
 
 /**
- * Platform connection interface
+ * Platform Sync Manager
+ * Manages file synchronization across multiple platforms
  */
-export interface PlatformConnection {
-  id: string;
-  platform: PlatformType;
-  name: string; // User-provided name for this connection
-  rootPath: string; // Root path for synchronization
-  credentials: Record<string, any>; // Platform-specific authentication
-  lastSyncDate?: Date;
-  isEnabled: boolean;
-  syncDirection: SyncDirection;
-  syncFrequency: number; // In minutes
-  excludedPaths: string[]; // Paths to exclude from sync
-  includedExtensions: string[]; // File extensions to include
-  excludedExtensions: string[]; // File extensions to exclude
-  metadata: Record<string, any>;
-}
-
-/**
- * Sync operation interface
- */
-export interface SyncOperation {
-  id: string;
-  connectionId: string;
-  startTime: Date;
-  endTime?: Date;
-  status: SyncStatus;
-  itemsProcessed: number;
-  itemsTotal?: number;
-  bytesTransferred: number;
-  errors: Array<{
-    path: string;
-    message: string;
-    code: string;
-  }>;
-  conflictItems: string[]; // IDs of items with conflicts
-}
-
-/**
- * Abstract class for platform-specific synchronization handlers
- */
-export abstract class PlatformSyncHandler {
-  protected connection: PlatformConnection;
+class PlatformSyncManager {
+  private connections: Map<string, PlatformConnection> = new Map();
+  private activeOperations: Map<string, boolean> = new Map();
+  private readonly uploadDir: string;
   
-  constructor(connection: PlatformConnection) {
-    this.connection = connection;
+  constructor() {
+    this.uploadDir = path.join(process.cwd(), 'uploads');
+    this.ensureDirectoryExists(this.uploadDir);
   }
   
   /**
-   * Test connection to platform
+   * Initialize the sync manager with existing connections
    */
-  abstract testConnection(): Promise<boolean>;
+  async initialize(): Promise<void> {
+    try {
+      const connections = await storage.getAllPlatformConnections();
+      
+      for (const connection of connections) {
+        this.connections.set(connection.id, connection);
+      }
+      
+      console.log(`Initialized PlatformSyncManager with ${connections.length} connections`);
+    } catch (error) {
+      console.error('Error initializing PlatformSyncManager:', error);
+    }
+  }
   
   /**
-   * List files and directories
+   * Add a new connection to sync manager
    */
-  abstract listItems(directoryPath: string): Promise<SyncItem[]>;
+  async addConnection(connection: PlatformConnection): Promise<void> {
+    this.connections.set(connection.id, connection);
+  }
   
   /**
-   * Download file from platform
+   * Update an existing connection
    */
-  abstract downloadFile(remotePath: string, localPath: string): Promise<boolean>;
-  
-  /**
-   * Upload file to platform
-   */
-  abstract uploadFile(localPath: string, remotePath: string): Promise<boolean>;
-  
-  /**
-   * Create directory on platform
-   */
-  abstract createDirectory(remotePath: string): Promise<boolean>;
-  
-  /**
-   * Delete file or directory on platform
-   */
-  abstract deleteItem(remotePath: string): Promise<boolean>;
-  
-  /**
-   * Get file metadata
-   */
-  abstract getItemMetadata(remotePath: string): Promise<SyncItem | null>;
-}
-
-/**
- * Dropbox synchronization handler
- */
-import { Dropbox } from 'dropbox';
-
-export class DropboxSyncHandler extends PlatformSyncHandler {
-  private dropboxClient: Dropbox;
-  
-  constructor(connection: PlatformConnection) {
-    super(connection);
+  async updateConnection(id: string, updates: Partial<PlatformConnection>): Promise<void> {
+    const connection = this.connections.get(id);
+    if (!connection) {
+      throw new Error(`Connection with ID ${id} not found`);
+    }
     
-    // Initialize Dropbox client with the access token
-    this.dropboxClient = new Dropbox({ 
-      accessToken: connection.credentials.accessToken 
-    });
+    this.connections.set(id, { ...connection, ...updates });
   }
   
-  async testConnection(): Promise<boolean> {
+  /**
+   * Delete a connection
+   */
+  async deleteConnection(id: string): Promise<void> {
+    this.connections.delete(id);
+  }
+  
+  /**
+   * Test a connection to verify credentials and access
+   */
+  async testConnection(id: string): Promise<boolean> {
+    const connection = this.connections.get(id);
+    if (!connection) {
+      throw new Error(`Connection with ID ${id} not found`);
+    }
+    
     try {
-      // Test connection by getting the current account info
-      await this.dropboxClient.usersGetCurrentAccount();
-      return true;
+      switch (connection.platform) {
+        case PlatformType.DROPBOX:
+          return await this.testDropboxConnection(connection);
+        case PlatformType.UBUNTU:
+          return await this.testSftpConnection(connection);
+        case PlatformType.WINDOWS:
+          return await this.testSftpConnection(connection);
+        case PlatformType.IOS:
+          return await this.testWebdavConnection(connection);
+        case PlatformType.WEB:
+          return true; // Web storage is local, so always works
+        default:
+          return false;
+      }
     } catch (error) {
-      console.error('Dropbox connection test failed:', error);
+      console.error(`Error testing connection ${id}:`, error);
       return false;
     }
   }
   
-  async listItems(directoryPath: string): Promise<SyncItem[]> {
+  /**
+   * Start a sync operation for a connection
+   */
+  async startSync(id: string): Promise<InsertSyncOperation | null> {
+    const connection = this.connections.get(id);
+    if (!connection) {
+      throw new Error(`Connection with ID ${id} not found`);
+    }
+    
+    // Check if a sync is already in progress
+    if (this.activeOperations.get(id)) {
+      throw new Error(`Sync already in progress for connection ${id}`);
+    }
+    
+    // Mark as active
+    this.activeOperations.set(id, true);
+    
+    // Create a new sync operation
+    const operation: InsertSyncOperation = {
+      id: uuidv4(),
+      connectionId: id,
+      status: SyncStatus.IN_PROGRESS,
+      startTime: new Date(),
+      endTime: null,
+      itemsProcessed: 0,
+      itemsTotal: null,
+      bytesTransferred: 0,
+      errors: [],
+      conflictItems: []
+    };
+    
+    // Save operation to storage
+    const savedOperation = await storage.createSyncOperation(operation);
+    
+    // Start sync process in background
+    this.runSyncProcess(id, savedOperation.id)
+      .catch(error => console.error(`Error in sync process for ${id}:`, error));
+    
+    return savedOperation;
+  }
+  
+  /**
+   * Resolve a sync conflict for an item
+   */
+  async resolveConflict(itemId: string, resolution: ConflictResolution): Promise<SyncItem | null> {
+    const item = await storage.getSyncItem(itemId);
+    if (!item) {
+      throw new Error(`Sync item with ID ${itemId} not found`);
+    }
+    
     try {
-      // List folder contents
-      const response = await this.dropboxClient.filesListFolder({
-        path: this.normalizePath(directoryPath)
+      const connection = this.connections.get(item.connectionId);
+      if (!connection) {
+        throw new Error(`Connection with ID ${item.connectionId} not found`);
+      }
+      
+      // Update the item with the resolution
+      const updatedItem = await storage.updateSyncItem(itemId, {
+        conflictResolution: resolution,
+        syncStatus: SyncStatus.PENDING // Mark for re-sync
       });
       
-      // Map Dropbox entries to SyncItems
-      const items: SyncItem[] = response.result.entries.map(entry => {
-        const isDirectory = entry['.tag'] === 'folder';
-        
-        return {
-          id: uuidv4(),
-          path: entry.path_display || '',
-          isDirectory,
-          size: !isDirectory && 'size' in entry ? entry.size : undefined,
-          mimeType: !isDirectory && 'content_hash' in entry ? this.getMimeType(entry.name || '') : undefined,
-          hash: !isDirectory && 'content_hash' in entry ? entry.content_hash : undefined,
-          lastModified: !isDirectory && 'server_modified' in entry 
-            ? new Date(entry.server_modified) 
-            : new Date(),
-          syncStatus: SyncStatus.PENDING,
-          platformSpecificData: {
-            dropbox_id: entry.id,
-            dropbox_path_lower: entry.path_lower
+      if (!updatedItem) {
+        throw new Error(`Failed to update sync item ${itemId}`);
+      }
+      
+      // Perform the resolution action based on the choice
+      switch (resolution) {
+        case 'local':
+          // Keep local version - upload to remote
+          if (!item.isDirectory) {
+            await this.uploadFileToRemote(connection, updatedItem);
           }
-        };
-      });
-      
-      return items;
-    } catch (error) {
-      console.error('Failed to list Dropbox items:', error);
-      return [];
-    }
-  }
-  
-  async downloadFile(remotePath: string, localPath: string): Promise<boolean> {
-    try {
-      // Download the file
-      const response = await this.dropboxClient.filesDownload({
-        path: this.normalizePath(remotePath)
-      });
-      
-      // Write file to local system
-      if (response.result.fileBinary) {
-        fs.writeFileSync(localPath, response.result.fileBinary);
-        return true;
-      }
-      return false;
-    } catch (error) {
-      console.error('Failed to download file from Dropbox:', error);
-      return false;
-    }
-  }
-  
-  async uploadFile(localPath: string, remotePath: string): Promise<boolean> {
-    try {
-      // Read file content
-      const fileContent = fs.readFileSync(localPath);
-      
-      // Upload to Dropbox
-      await this.dropboxClient.filesUpload({
-        path: this.normalizePath(remotePath),
-        contents: fileContent,
-        mode: { '.tag': 'overwrite' }
-      });
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to upload file to Dropbox:', error);
-      return false;
-    }
-  }
-  
-  async createDirectory(remotePath: string): Promise<boolean> {
-    try {
-      // Create folder in Dropbox
-      await this.dropboxClient.filesCreateFolderV2({
-        path: this.normalizePath(remotePath),
-        autorename: false
-      });
-      
-      return true;
-    } catch (error) {
-      // If the folder already exists, consider it a success
-      if (error.status === 409) {
-        return true;
+          break;
+        case 'remote':
+          // Keep remote version - download to local
+          if (!item.isDirectory) {
+            await this.downloadFileFromRemote(connection, updatedItem);
+          }
+          break;
+        case 'rename':
+          // Rename local file and keep both versions
+          if (!item.isDirectory) {
+            await this.handleRenameResolution(connection, updatedItem);
+          }
+          break;
+        case 'manual':
+          // Manual resolution - just mark as resolved
+          break;
       }
       
-      console.error('Failed to create directory in Dropbox:', error);
-      return false;
-    }
-  }
-  
-  async deleteItem(remotePath: string): Promise<boolean> {
-    try {
-      // Delete file or folder from Dropbox
-      await this.dropboxClient.filesDeleteV2({
-        path: this.normalizePath(remotePath)
+      // Update the item status after resolution
+      return await storage.updateSyncItem(itemId, {
+        syncStatus: SyncStatus.COMPLETED,
+        conflict: false
       });
       
-      return true;
     } catch (error) {
-      console.error('Failed to delete item from Dropbox:', error);
-      return false;
-    }
-  }
-  
-  async getItemMetadata(remotePath: string): Promise<SyncItem | null> {
-    try {
-      // Get file/folder metadata
-      const response = await this.dropboxClient.filesGetMetadata({
-        path: this.normalizePath(remotePath)
-      });
-      
-      const entry = response.result;
-      const isDirectory = entry['.tag'] === 'folder';
-      
-      // Convert to SyncItem
-      const item: SyncItem = {
-        id: uuidv4(),
-        path: entry.path_display || remotePath,
-        isDirectory,
-        size: !isDirectory && 'size' in entry ? entry.size : undefined,
-        mimeType: !isDirectory && entry.name ? this.getMimeType(entry.name) : undefined,
-        hash: !isDirectory && 'content_hash' in entry ? entry.content_hash : undefined,
-        lastModified: !isDirectory && 'server_modified' in entry 
-          ? new Date(entry.server_modified) 
-          : new Date(),
-        syncStatus: SyncStatus.PENDING,
-        platformSpecificData: {
-          dropbox_id: entry.id,
-          dropbox_path_lower: entry.path_lower
-        }
-      };
-      
-      return item;
-    } catch (error) {
-      console.error('Failed to get item metadata from Dropbox:', error);
+      console.error(`Error resolving conflict for item ${itemId}:`, error);
       return null;
     }
   }
   
-  // Helper method to get MIME type from filename
-  private getMimeType(filename: string): string {
-    const extension = path.extname(filename).toLowerCase();
+  /**
+   * Run the actual sync process for a connection
+   * This runs in the background after startSync is called
+   */
+  private async runSyncProcess(connectionId: string, operationId: string): Promise<void> {
+    const connection = this.connections.get(connectionId);
+    if (!connection) {
+      await this.failOperation(operationId, 'Connection not found');
+      return;
+    }
     
-    // Simple MIME type mapping
+    try {
+      // Get remote files
+      const remoteFiles = await this.listRemoteFiles(connection);
+      
+      // Get existing items from storage
+      const existingItems = await storage.getSyncItems(connectionId);
+      const existingItemsByPath = new Map<string, SyncItem>();
+      for (const item of existingItems) {
+        existingItemsByPath.set(item.path, item);
+      }
+      
+      // Create local directory for this connection if it doesn't exist
+      const localDir = this.getLocalDirectoryPath(connection);
+      this.ensureDirectoryExists(localDir);
+      
+      // Get local files
+      const localFiles = await this.listLocalFiles(connection);
+      
+      // Calculate items to sync
+      const itemsToCreate: InsertSyncItem[] = [];
+      const itemsToUpdate: Array<{ id: string, updates: Partial<InsertSyncItem> }> = [];
+      const totalItems = remoteFiles.length + localFiles.length;
+      
+      // Update operation with total items
+      await storage.updateSyncOperation(operationId, {
+        itemsTotal: totalItems
+      });
+      
+      // Process based on sync direction
+      if (connection.syncDirection === SyncDirection.DOWNLOAD || 
+          connection.syncDirection === SyncDirection.BIDIRECTIONAL) {
+        // Process remote files (download to local)
+        for (const remoteFile of remoteFiles) {
+          const existingItem = existingItemsByPath.get(remoteFile.path);
+          
+          if (!existingItem) {
+            // New file to track
+            itemsToCreate.push({
+              id: uuidv4(),
+              connectionId,
+              path: remoteFile.path,
+              isDirectory: remoteFile.isDirectory,
+              size: remoteFile.size,
+              mimeType: remoteFile.mimeType || null,
+              hash: remoteFile.hash || null,
+              lastSyncedAt: null,
+              syncStatus: SyncStatus.PENDING,
+              conflict: false,
+              localModified: null,
+              remoteModified: remoteFile.modifiedTime,
+              conflictResolution: null
+            });
+          } else {
+            // Check for changes
+            const hasChanged = existingItem.hash !== remoteFile.hash ||
+                              (existingItem.remoteModified && remoteFile.modifiedTime > existingItem.remoteModified);
+            
+            if (hasChanged) {
+              // Item has changed - update record
+              itemsToUpdate.push({
+                id: existingItem.id,
+                updates: {
+                  size: remoteFile.size,
+                  mimeType: remoteFile.mimeType || null,
+                  hash: remoteFile.hash || null,
+                  remoteModified: remoteFile.modifiedTime,
+                  syncStatus: SyncStatus.PENDING
+                }
+              });
+            }
+          }
+        }
+      }
+      
+      if (connection.syncDirection === SyncDirection.UPLOAD || 
+          connection.syncDirection === SyncDirection.BIDIRECTIONAL) {
+        // Process local files (upload to remote)
+        for (const localFile of localFiles) {
+          const existingItem = existingItemsByPath.get(localFile.path);
+          
+          if (!existingItem) {
+            // New file to track
+            itemsToCreate.push({
+              id: uuidv4(),
+              connectionId,
+              path: localFile.path,
+              isDirectory: localFile.isDirectory,
+              size: localFile.size,
+              mimeType: localFile.mimeType || null,
+              hash: localFile.hash || null,
+              lastSyncedAt: null,
+              syncStatus: SyncStatus.PENDING,
+              conflict: false,
+              localModified: localFile.modifiedTime,
+              remoteModified: null,
+              conflictResolution: null
+            });
+          } else {
+            // Check for changes
+            const hasChanged = existingItem.hash !== localFile.hash ||
+                              (existingItem.localModified && localFile.modifiedTime > existingItem.localModified);
+            
+            if (hasChanged) {
+              // Item has changed - update record
+              itemsToUpdate.push({
+                id: existingItem.id,
+                updates: {
+                  size: localFile.size,
+                  mimeType: localFile.mimeType || null,
+                  hash: localFile.hash || null,
+                  localModified: localFile.modifiedTime,
+                  syncStatus: SyncStatus.PENDING
+                }
+              });
+            }
+          }
+        }
+      }
+      
+      // Process bidirectional conflicts
+      if (connection.syncDirection === SyncDirection.BIDIRECTIONAL) {
+        this.detectConflicts(itemsToUpdate, existingItems, connectionId, operationId);
+      }
+      
+      // Save all changes to the database in batches
+      if (itemsToCreate.length > 0) {
+        await storage.batchCreateSyncItems(itemsToCreate);
+      }
+      
+      if (itemsToUpdate.length > 0) {
+        await storage.batchUpdateSyncItems(itemsToUpdate);
+      }
+      
+      // Process actual file transfers
+      const allItems = await storage.getSyncItems(connectionId);
+      await this.processFileTransfers(connection, allItems, operationId);
+      
+      // Update the operation as completed
+      await storage.updateSyncOperation(operationId, {
+        status: SyncStatus.COMPLETED,
+        endTime: new Date()
+      });
+    } catch (error) {
+      await this.failOperation(operationId, `Sync failed: ${error}`);
+    } finally {
+      // Mark as no longer active
+      this.activeOperations.set(connectionId, false);
+    }
+  }
+  
+  /**
+   * Detect and mark conflicts in bidirectional sync
+   */
+  private async detectConflicts(
+    itemsToUpdate: Array<{ id: string, updates: Partial<InsertSyncItem> }>,
+    existingItems: SyncItem[],
+    connectionId: string,
+    operationId: string
+  ): Promise<void> {
+    const conflictItems: string[] = [];
+    
+    for (const item of existingItems) {
+      // Skip directories for conflict detection
+      if (item.isDirectory) continue;
+      
+      // Check if both local and remote have modifications
+      if (item.localModified && item.remoteModified) {
+        // Find if this item is being updated
+        const updateIndex = itemsToUpdate.findIndex(u => u.id === item.id);
+        
+        if (updateIndex >= 0) {
+          // Item is being updated - mark as conflict
+          itemsToUpdate[updateIndex].updates.conflict = true;
+          itemsToUpdate[updateIndex].updates.syncStatus = SyncStatus.CONFLICT;
+          conflictItems.push(item.id);
+        } else {
+          // Item not being updated but may still have conflict from previous sync
+          if (!item.conflict) {
+            // Check timestamps to see if there might be a conflict
+            if (Math.abs(item.localModified.getTime() - item.remoteModified.getTime()) > 60000) {
+              // More than 1 minute difference - likely a conflict
+              itemsToUpdate.push({
+                id: item.id,
+                updates: {
+                  conflict: true,
+                  syncStatus: SyncStatus.CONFLICT
+                }
+              });
+              conflictItems.push(item.id);
+            }
+          }
+        }
+      }
+    }
+    
+    // Update operation with conflict items
+    if (conflictItems.length > 0) {
+      await storage.updateSyncOperation(operationId, {
+        conflictItems,
+        status: SyncStatus.CONFLICT
+      });
+    }
+  }
+  
+  /**
+   * Process all file transfers for items that need syncing
+   */
+  private async processFileTransfers(
+    connection: PlatformConnection,
+    items: SyncItem[],
+    operationId: string
+  ): Promise<void> {
+    let itemsProcessed = 0;
+    let bytesTransferred = 0;
+    const errors: { path: string, message: string }[] = [];
+    
+    for (const item of items) {
+      // Skip items with conflicts
+      if (item.conflict) {
+        continue;
+      }
+      
+      // Skip items that don't need syncing
+      if (item.syncStatus !== SyncStatus.PENDING) {
+        continue;
+      }
+      
+      try {
+        if (connection.syncDirection === SyncDirection.DOWNLOAD || 
+            connection.syncDirection === SyncDirection.BIDIRECTIONAL) {
+          // Handle remote to local transfer (download)
+          if (!item.isDirectory && item.remoteModified) {
+            // Only download if we have a remote modification time (indicates file exists remotely)
+            const downloadResult = await this.downloadFileFromRemote(connection, item);
+            bytesTransferred += downloadResult.bytesTransferred;
+          }
+        }
+        
+        if (connection.syncDirection === SyncDirection.UPLOAD || 
+            connection.syncDirection === SyncDirection.BIDIRECTIONAL) {
+          // Handle local to remote transfer (upload)
+          if (!item.isDirectory && item.localModified) {
+            // Only upload if we have a local modification time (indicates file exists locally)
+            const uploadResult = await this.uploadFileToRemote(connection, item);
+            bytesTransferred += uploadResult.bytesTransferred;
+          }
+        }
+        
+        // Mark item as synced
+        await storage.updateSyncItem(item.id, {
+          lastSyncedAt: new Date(),
+          syncStatus: SyncStatus.COMPLETED
+        });
+        
+        itemsProcessed++;
+        
+        // Update operation periodically
+        if (itemsProcessed % 10 === 0) {
+          await storage.updateSyncOperation(operationId, {
+            itemsProcessed,
+            bytesTransferred
+          });
+        }
+      } catch (error) {
+        console.error(`Error syncing item ${item.path}:`, error);
+        
+        // Mark as failed
+        await storage.updateSyncItem(item.id, {
+          syncStatus: SyncStatus.FAILED
+        });
+        
+        // Record error
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        errors.push({ path: item.path, message: errorMessage });
+      }
+    }
+    
+    // Final operation update
+    await storage.updateSyncOperation(operationId, {
+      itemsProcessed,
+      bytesTransferred,
+      errors
+    });
+  }
+  
+  /**
+   * Upload a file to the remote platform
+   */
+  private async uploadFileToRemote(
+    connection: PlatformConnection,
+    item: SyncItem
+  ): Promise<{ bytesTransferred: number }> {
+    const localPath = this.getLocalFilePath(connection, item.path);
+    
+    if (!fs.existsSync(localPath)) {
+      throw new Error(`Local file does not exist: ${localPath}`);
+    }
+    
+    const fileStats = fs.statSync(localPath);
+    const fileContent = fs.readFileSync(localPath);
+    
+    switch (connection.platform) {
+      case PlatformType.DROPBOX:
+        return await this.uploadToDropbox(connection, item.path, fileContent);
+      case PlatformType.UBUNTU:
+      case PlatformType.WINDOWS:
+        return await this.uploadToSftp(connection, item.path, localPath);
+      case PlatformType.IOS:
+        return await this.uploadToWebdav(connection, item.path, fileContent);
+      case PlatformType.WEB:
+        // No remote upload needed for web storage
+        return { bytesTransferred: 0 };
+      default:
+        throw new Error(`Unsupported platform: ${connection.platform}`);
+    }
+  }
+  
+  /**
+   * Download a file from the remote platform
+   */
+  private async downloadFileFromRemote(
+    connection: PlatformConnection,
+    item: SyncItem
+  ): Promise<{ bytesTransferred: number }> {
+    const localPath = this.getLocalFilePath(connection, item.path);
+    this.ensureDirectoryExists(path.dirname(localPath));
+    
+    switch (connection.platform) {
+      case PlatformType.DROPBOX:
+        return await this.downloadFromDropbox(connection, item.path, localPath);
+      case PlatformType.UBUNTU:
+      case PlatformType.WINDOWS:
+        return await this.downloadFromSftp(connection, item.path, localPath);
+      case PlatformType.IOS:
+        return await this.downloadFromWebdav(connection, item.path, localPath);
+      case PlatformType.WEB:
+        // No remote download needed for web storage
+        return { bytesTransferred: 0 };
+      default:
+        throw new Error(`Unsupported platform: ${connection.platform}`);
+    }
+  }
+  
+  /**
+   * Handle the "rename" conflict resolution
+   */
+  private async handleRenameResolution(
+    connection: PlatformConnection,
+    item: SyncItem
+  ): Promise<void> {
+    const localPath = this.getLocalFilePath(connection, item.path);
+    const filename = path.basename(localPath);
+    const directory = path.dirname(localPath);
+    const extension = path.extname(filename);
+    const nameWithoutExt = path.basename(filename, extension);
+    
+    // Create new filename with conflict suffix
+    const newFilename = `${nameWithoutExt} (conflict-${Date.now()})${extension}`;
+    const newPath = path.join(directory, newFilename);
+    
+    // Create new path in the sync item format
+    const itemDirectory = path.dirname(item.path);
+    const newItemPath = path.join(itemDirectory, newFilename).replace(/\\/g, '/');
+    
+    // Download the remote file as a new file
+    if (item.remoteModified) {
+      // Create a temporary sync item with the new path
+      const tempItem: SyncItem = {
+        ...item,
+        path: newItemPath
+      };
+      
+      // Download the remote file to the new path
+      await this.downloadFileFromRemote(connection, tempItem);
+      
+      // Create a new sync item for the renamed file
+      await storage.createSyncItem({
+        id: uuidv4(),
+        connectionId: connection.id,
+        path: newItemPath,
+        isDirectory: item.isDirectory,
+        size: item.size,
+        mimeType: item.mimeType,
+        hash: item.hash,
+        lastSyncedAt: new Date(),
+        syncStatus: SyncStatus.COMPLETED,
+        conflict: false,
+        localModified: new Date(),
+        remoteModified: item.remoteModified,
+        conflictResolution: null
+      });
+    }
+  }
+  
+  /**
+   * Get a list of files from a Dropbox account
+   */
+  private async listRemoteFiles(connection: PlatformConnection): Promise<FileMetadata[]> {
+    switch (connection.platform) {
+      case PlatformType.DROPBOX:
+        return await this.listDropboxFiles(connection);
+      case PlatformType.UBUNTU:
+      case PlatformType.WINDOWS:
+        return await this.listSftpFiles(connection);
+      case PlatformType.IOS:
+        return await this.listWebdavFiles(connection);
+      case PlatformType.WEB:
+        // Web storage is local-only
+        return [];
+      default:
+        throw new Error(`Unsupported platform: ${connection.platform}`);
+    }
+  }
+  
+  /**
+   * List files in the local directory for a connection
+   */
+  private async listLocalFiles(connection: PlatformConnection): Promise<FileMetadata[]> {
+    const localDir = this.getLocalDirectoryPath(connection);
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+      return [];
+    }
+    
+    return await this.scanDirectory(localDir, connection.rootPath);
+  }
+  
+  /**
+   * Recursively scan a local directory
+   */
+  private async scanDirectory(dir: string, rootPath: string, relativePath: string = ''): Promise<FileMetadata[]> {
+    const files: FileMetadata[] = [];
+    const items = fs.readdirSync(dir);
+    
+    for (const item of items) {
+      const fullPath = path.join(dir, item);
+      const stats = fs.statSync(fullPath);
+      const itemRelativePath = path.join(relativePath, item).replace(/\\/g, '/');
+      const normalizedPath = path.join(rootPath, itemRelativePath).replace(/\\/g, '/');
+      
+      if (stats.isDirectory()) {
+        // Add directory entry
+        files.push({
+          path: normalizedPath,
+          size: 0,
+          isDirectory: true,
+          modifiedTime: stats.mtime
+        });
+        
+        // Scan subdirectory recursively
+        const subFiles = await this.scanDirectory(fullPath, rootPath, itemRelativePath);
+        files.push(...subFiles);
+      } else {
+        // Generate hash for the file
+        const hash = await this.getFileHash(fullPath);
+        
+        // Detect mime type
+        const mimeType = this.getMimeType(item);
+        
+        // Add file entry
+        files.push({
+          path: normalizedPath,
+          size: stats.size,
+          isDirectory: false,
+          modifiedTime: stats.mtime,
+          hash,
+          mimeType
+        });
+      }
+    }
+    
+    return files;
+  }
+  
+  /**
+   * Calculate a hash for a file
+   */
+  private async getFileHash(filePath: string): Promise<string> {
+    const fileBuffer = fs.readFileSync(filePath);
+    const hashSum = crypto.createHash('sha256');
+    hashSum.update(fileBuffer);
+    return hashSum.digest('hex');
+  }
+  
+  /**
+   * Get the mime type for a file based on its extension
+   */
+  private getMimeType(filename: string): string {
+    const ext = path.extname(filename).toLowerCase();
+    
+    // Map common extensions to mime types
     const mimeTypes: Record<string, string> = {
+      '.html': 'text/html',
+      '.css': 'text/css',
+      '.js': 'application/javascript',
+      '.json': 'application/json',
+      '.png': 'image/png',
       '.jpg': 'image/jpeg',
       '.jpeg': 'image/jpeg',
-      '.png': 'image/png',
       '.gif': 'image/gif',
+      '.svg': 'image/svg+xml',
       '.pdf': 'application/pdf',
       '.doc': 'application/msword',
       '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -325,819 +741,699 @@ export class DropboxSyncHandler extends PlatformSyncHandler {
       '.ppt': 'application/vnd.ms-powerpoint',
       '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
       '.txt': 'text/plain',
-      '.html': 'text/html',
-      '.htm': 'text/html',
+      '.md': 'text/markdown',
+      '.csv': 'text/csv',
+      '.zip': 'application/zip',
       '.mp3': 'audio/mpeg',
       '.mp4': 'video/mp4',
-      '.json': 'application/json',
+      '.wav': 'audio/wav',
       '.xml': 'application/xml',
-      '.zip': 'application/zip'
+      '.py': 'text/x-python',
+      '.rb': 'text/x-ruby',
+      '.java': 'text/x-java',
+      '.c': 'text/x-c',
+      '.cpp': 'text/x-c++',
+      '.php': 'application/x-php'
     };
     
-    return mimeTypes[extension] || 'application/octet-stream';
+    return mimeTypes[ext] || 'application/octet-stream';
   }
   
-  private normalizePath(filePath: string): string {
-    // Dropbox paths should start with a /
-    if (!filePath.startsWith('/')) {
-      filePath = '/' + filePath;
-    }
-    return filePath;
-  }
-}
-
-/**
- * iOS synchronization handler using iCloud API
- */
-export class IOSSyncHandler extends PlatformSyncHandler {
-  private iCloudClient: any; // Would be the iCloud client
-  
-  constructor(connection: PlatformConnection) {
-    super(connection);
-    
-    // Initialize iCloud client
-    // In a real implementation, this would use the node-icloud library or a similar API
-    // this.iCloudClient = new iCloud({ apple_id: connection.credentials.appleId, password: connection.credentials.password });
-    this.iCloudClient = null; // Placeholder
-  }
-  
-  async testConnection(): Promise<boolean> {
+  /**
+   * Test a Dropbox connection
+   */
+  private async testDropboxConnection(connection: PlatformConnection): Promise<boolean> {
     try {
-      // In a real implementation, this would test the iCloud connection
-      // await this.iCloudClient.getDevices();
+      const dbx = this.getDropboxClient(connection);
+      const result = await dbx.usersGetCurrentAccount();
       return true;
     } catch (error) {
-      console.error('iCloud connection test failed:', error);
+      console.error('Dropbox connection test failed:', error);
       return false;
     }
   }
   
-  async listItems(directoryPath: string): Promise<SyncItem[]> {
+  /**
+   * Test an SFTP connection (Ubuntu/Windows)
+   */
+  private async testSftpConnection(connection: PlatformConnection): Promise<boolean> {
+    const client = new SFTPClient();
+    
     try {
-      // In a real implementation, this would list files from iCloud Drive
-      // const files = await this.iCloudClient.drive.items(directoryPath);
-      
-      // Simulate response
-      const items: SyncItem[] = [];
-      
-      // For demonstration purposes only
-      items.push({
-        id: uuidv4(),
-        path: path.join(directoryPath, 'photo.jpg'),
-        isDirectory: false,
-        size: 2 * 1024 * 1024, // 2 MB
-        mimeType: 'image/jpeg',
-        hash: 'abcdef123456',
-        lastModified: new Date(),
-        syncStatus: SyncStatus.PENDING
+      await client.connect({
+        host: connection.credentials.host,
+        port: connection.credentials.port || 22,
+        username: connection.credentials.username,
+        password: connection.credentials.password,
+        privateKey: connection.credentials.privateKey
       });
       
-      return items;
-    } catch (error) {
-      console.error('Failed to list iCloud items:', error);
-      return [];
-    }
-  }
-  
-  async downloadFile(remotePath: string, localPath: string): Promise<boolean> {
-    try {
-      // In a real implementation, this would download from iCloud Drive
-      // await this.iCloudClient.drive.downloadItem(remotePath, localPath);
-      return true;
-    } catch (error) {
-      console.error('Failed to download file from iCloud:', error);
-      return false;
-    }
-  }
-  
-  async uploadFile(localPath: string, remotePath: string): Promise<boolean> {
-    try {
-      // In a real implementation, this would upload to iCloud Drive
-      // await this.iCloudClient.drive.uploadItem(localPath, remotePath);
-      return true;
-    } catch (error) {
-      console.error('Failed to upload file to iCloud:', error);
-      return false;
-    }
-  }
-  
-  async createDirectory(remotePath: string): Promise<boolean> {
-    try {
-      // In a real implementation, this would create a directory in iCloud Drive
-      // await this.iCloudClient.drive.createFolder(remotePath);
-      return true;
-    } catch (error) {
-      console.error('Failed to create directory in iCloud:', error);
-      return false;
-    }
-  }
-  
-  async deleteItem(remotePath: string): Promise<boolean> {
-    try {
-      // In a real implementation, this would delete from iCloud Drive
-      // await this.iCloudClient.drive.deleteItem(remotePath);
-      return true;
-    } catch (error) {
-      console.error('Failed to delete item from iCloud:', error);
-      return false;
-    }
-  }
-  
-  async getItemMetadata(remotePath: string): Promise<SyncItem | null> {
-    try {
-      // In a real implementation, this would get metadata from iCloud Drive
-      // const item = await this.iCloudClient.drive.getItemDetails(remotePath);
+      // Try to access the remote directory
+      await client.list(connection.rootPath);
       
-      // Simulate response
-      const item: SyncItem = {
-        id: uuidv4(),
-        path: remotePath,
-        isDirectory: remotePath.endsWith('/'),
-        size: 1024 * 1024, // 1 MB
-        mimeType: 'image/jpeg',
-        hash: 'abcdef123456',
-        lastModified: new Date(),
-        syncStatus: SyncStatus.PENDING
-      };
-      
-      return item;
-    } catch (error) {
-      console.error('Failed to get item metadata from iCloud:', error);
-      return null;
-    }
-  }
-}
-
-/**
- * Ubuntu synchronization handler using SFTP/SSH
- */
-import SftpClient from 'ssh2-sftp-client';
-
-export class UbuntuSyncHandler extends PlatformSyncHandler {
-  private sftpClient: SftpClient;
-  
-  constructor(connection: PlatformConnection) {
-    super(connection);
-    
-    // Initialize SFTP client
-    this.sftpClient = new SftpClient();
-  }
-  
-  async testConnection(): Promise<boolean> {
-    try {
-      await this.connectSftp();
-      await this.sftpClient.end();
+      await client.end();
       return true;
     } catch (error) {
       console.error('SFTP connection test failed:', error);
+      
+      if (client.sftp) {
+        await client.end();
+      }
+      
       return false;
     }
   }
   
-  async listItems(directoryPath: string): Promise<SyncItem[]> {
+  /**
+   * Test a WebDAV connection (iOS)
+   */
+  private async testWebdavConnection(connection: PlatformConnection): Promise<boolean> {
     try {
-      await this.connectSftp();
+      const headers: Record<string, string> = {
+        'Depth': '1'
+      };
       
-      // List files from SFTP server
-      const fileList = await this.sftpClient.list(directoryPath);
+      // Add authentication
+      if (connection.credentials.username && connection.credentials.password) {
+        const authString = `${connection.credentials.username}:${connection.credentials.password}`;
+        headers['Authorization'] = `Basic ${Buffer.from(authString).toString('base64')}`;
+      }
       
-      // Close connection
-      await this.sftpClient.end();
-      
-      // Convert SFTP items to SyncItems
-      return fileList.map(item => {
-        const isDirectory = item.type === 'd';
-        const fullPath = path.join(directoryPath, item.name);
-        
-        return {
-          id: uuidv4(),
-          path: fullPath,
-          isDirectory,
-          size: item.size,
-          mimeType: isDirectory ? undefined : this.getMimeType(item.name),
-          hash: item.modifyTime.toString(), // Using modification time as a pseudo-hash
-          lastModified: new Date(item.modifyTime),
-          syncStatus: SyncStatus.PENDING,
-          platformSpecificData: {
-            permissions: item.rights,
-            owner: item.owner,
-            group: item.group
-          }
-        };
+      // Make a PROPFIND request to list files
+      const response = await fetch(`${connection.credentials.url}${connection.rootPath}`, {
+        method: 'PROPFIND',
+        headers
       });
+      
+      return response.status === 207; // 207 is the success status for WebDAV multistatus
     } catch (error) {
-      console.error('Failed to list SFTP items:', error);
-      return [];
+      console.error('WebDAV connection test failed:', error);
+      return false;
     }
   }
   
-  async downloadFile(remotePath: string, localPath: string): Promise<boolean> {
+  /**
+   * List files from Dropbox
+   */
+  private async listDropboxFiles(connection: PlatformConnection): Promise<FileMetadata[]> {
+    const dbx = this.getDropboxClient(connection);
+    const files: FileMetadata[] = [];
+    let hasMore = true;
+    let cursor: string | undefined;
+    
     try {
-      await this.connectSftp();
+      // Initial list folder request
+      const result = await dbx.filesListFolder({
+        path: connection.rootPath,
+        recursive: true
+      });
       
-      // Make sure the target directory exists
-      const localDir = path.dirname(localPath);
-      if (!fs.existsSync(localDir)) {
-        fs.mkdirSync(localDir, { recursive: true });
+      // Process the entries
+      for (const entry of result.result.entries) {
+        if (entry['.tag'] === 'file') {
+          files.push({
+            path: entry.path_display || entry.path_lower || '',
+            size: (entry as DropboxFiles.FileMetadata).size,
+            isDirectory: false,
+            modifiedTime: new Date((entry as DropboxFiles.FileMetadata).server_modified),
+            hash: (entry as DropboxFiles.FileMetadata).content_hash
+          });
+        } else if (entry['.tag'] === 'folder') {
+          files.push({
+            path: entry.path_display || entry.path_lower || '',
+            size: 0,
+            isDirectory: true,
+            modifiedTime: new Date()
+          });
+        }
       }
       
-      // Download file
-      await this.sftpClient.fastGet(remotePath, localPath);
+      hasMore = result.result.has_more;
+      cursor = result.result.cursor;
       
-      // Close connection
-      await this.sftpClient.end();
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to download file from SFTP:', error);
-      return false;
-    }
-  }
-  
-  async uploadFile(localPath: string, remotePath: string): Promise<boolean> {
-    try {
-      await this.connectSftp();
-      
-      // Create remote directory if it doesn't exist
-      const remoteDir = path.dirname(remotePath);
-      const dirExists = await this.sftpClient.exists(remoteDir);
-      if (!dirExists) {
-        await this.sftpClient.mkdir(remoteDir, true);
+      // Continue if there are more entries
+      while (hasMore && cursor) {
+        const continuedResult = await dbx.filesListFolderContinue({ cursor });
+        
+        for (const entry of continuedResult.result.entries) {
+          if (entry['.tag'] === 'file') {
+            files.push({
+              path: entry.path_display || entry.path_lower || '',
+              size: (entry as DropboxFiles.FileMetadata).size,
+              isDirectory: false,
+              modifiedTime: new Date((entry as DropboxFiles.FileMetadata).server_modified),
+              hash: (entry as DropboxFiles.FileMetadata).content_hash
+            });
+          } else if (entry['.tag'] === 'folder') {
+            files.push({
+              path: entry.path_display || entry.path_lower || '',
+              size: 0,
+              isDirectory: true,
+              modifiedTime: new Date()
+            });
+          }
+        }
+        
+        hasMore = continuedResult.result.has_more;
+        cursor = continuedResult.result.cursor;
       }
       
-      // Upload file
-      await this.sftpClient.fastPut(localPath, remotePath);
-      
-      // Close connection
-      await this.sftpClient.end();
-      
-      return true;
+      return files;
     } catch (error) {
-      console.error('Failed to upload file to SFTP:', error);
-      return false;
+      console.error('Error listing Dropbox files:', error);
+      throw error;
     }
   }
   
-  async createDirectory(remotePath: string): Promise<boolean> {
+  /**
+   * List files via SFTP (Ubuntu/Windows)
+   */
+  private async listSftpFiles(connection: PlatformConnection): Promise<FileMetadata[]> {
+    const client = new SFTPClient();
+    const files: FileMetadata[] = [];
+    
     try {
-      await this.connectSftp();
+      await client.connect({
+        host: connection.credentials.host,
+        port: connection.credentials.port || 22,
+        username: connection.credentials.username,
+        password: connection.credentials.password,
+        privateKey: connection.credentials.privateKey
+      });
       
-      // Create directory with recursive option
-      await this.sftpClient.mkdir(remotePath, true);
-      
-      // Close connection
-      await this.sftpClient.end();
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to create directory over SFTP:', error);
-      return false;
-    }
-  }
-  
-  async deleteItem(remotePath: string): Promise<boolean> {
-    try {
-      await this.connectSftp();
-      
-      // Check if item exists and its type
-      const stats = await this.sftpClient.stat(remotePath);
-      
-      // Delete based on type
-      if (stats.isDirectory) {
-        await this.sftpClient.rmdir(remotePath, true); // Recursive deletion
-      } else {
-        await this.sftpClient.delete(remotePath);
-      }
-      
-      // Close connection
-      await this.sftpClient.end();
-      
-      return true;
-    } catch (error) {
-      console.error('Failed to delete item over SFTP:', error);
-      return false;
-    }
-  }
-  
-  async getItemMetadata(remotePath: string): Promise<SyncItem | null> {
-    try {
-      await this.connectSftp();
-      
-      // Get file/directory stats
-      const stats = await this.sftpClient.stat(remotePath);
-      
-      // Close connection
-      await this.sftpClient.end();
-      
-      // Path components
-      const basename = path.basename(remotePath);
-      const isDirectory = stats.isDirectory;
-      
-      // Create SyncItem
-      const item: SyncItem = {
-        id: uuidv4(),
-        path: remotePath,
-        isDirectory,
-        size: stats.size,
-        mimeType: isDirectory ? undefined : this.getMimeType(basename),
-        hash: stats.modifyTime.toString(), // Using modification time as a pseudo-hash
-        lastModified: new Date(stats.modifyTime),
-        syncStatus: SyncStatus.PENDING,
-        platformSpecificData: {
-          permissions: stats.rights,
-          owner: stats.owner,
-          group: stats.group,
-          accessTime: stats.accessTime,
-          modifyTime: stats.modifyTime
+      // Recursive function to scan directories
+      const scanSftpDir = async (remotePath: string, relativePath: string = ''): Promise<void> => {
+        const list = await client.list(remotePath);
+        
+        for (const item of list) {
+          const itemName = item.name;
+          const itemPath = path.posix.join(remotePath, itemName);
+          const normalizedPath = path.posix.join(connection.rootPath, relativePath, itemName);
+          
+          if (item.type === 'd') {
+            // Directory
+            files.push({
+              path: normalizedPath,
+              size: 0,
+              isDirectory: true,
+              modifiedTime: item.modifyTime || new Date()
+            });
+            
+            // Recursively scan subdirectory
+            await scanSftpDir(itemPath, path.posix.join(relativePath, itemName));
+          } else if (item.type === '-') {
+            // Regular file
+            files.push({
+              path: normalizedPath,
+              size: item.size,
+              isDirectory: false,
+              modifiedTime: item.modifyTime || new Date(),
+              mimeType: this.getMimeType(itemName)
+            });
+          }
         }
       };
       
-      return item;
+      // Start scanning from the root path
+      await scanSftpDir(connection.rootPath);
+      
+      await client.end();
+      return files;
     } catch (error) {
-      console.error('Failed to get item metadata over SFTP:', error);
-      return null;
+      console.error('Error listing SFTP files:', error);
+      
+      if (client.sftp) {
+        await client.end();
+      }
+      
+      throw error;
     }
   }
   
-  private async connectSftp(): Promise<void> {
-    // Connect to the SFTP server
-    await this.sftpClient.connect({
-      host: this.connection.credentials.host,
-      port: this.connection.credentials.port || 22,
-      username: this.connection.credentials.username,
-      password: this.connection.credentials.password,
-      privateKey: this.connection.credentials.privateKey
+  /**
+   * List files via WebDAV (iOS)
+   */
+  private async listWebdavFiles(connection: PlatformConnection): Promise<FileMetadata[]> {
+    const files: FileMetadata[] = [];
+    
+    try {
+      const scanWebdavDir = async (remotePath: string): Promise<void> => {
+        const headers: Record<string, string> = {
+          'Depth': '1',
+          'Content-Type': 'application/xml'
+        };
+        
+        // Add authentication
+        if (connection.credentials.username && connection.credentials.password) {
+          const authString = `${connection.credentials.username}:${connection.credentials.password}`;
+          headers['Authorization'] = `Basic ${Buffer.from(authString).toString('base64')}`;
+        }
+        
+        // Make a PROPFIND request to list files
+        const response = await fetch(`${connection.credentials.url}${remotePath}`, {
+          method: 'PROPFIND',
+          headers
+        });
+        
+        if (response.status !== 207) {
+          throw new Error(`WebDAV error: ${response.status} ${response.statusText}`);
+        }
+        
+        const text = await response.text();
+        
+        // Parse the XML response (simplified version)
+        // In a real implementation, use a proper XML parser
+        const responseXml = text;
+        const responses = responseXml.split('<d:response>').slice(1);
+        
+        for (const responseText of responses) {
+          const hrefMatch = responseText.match(/<d:href>(.*?)<\/d:href>/);
+          const isCollection = responseText.includes('<d:resourcetype><d:collection/></d:resourcetype>');
+          const contentLengthMatch = responseText.match(/<d:getcontentlength>(.*?)<\/d:getcontentlength>/);
+          const lastModifiedMatch = responseText.match(/<d:getlastmodified>(.*?)<\/d:getlastmodified>/);
+          
+          if (hrefMatch) {
+            let href = hrefMatch[1];
+            // Remove the base URL part if present
+            const urlObj = new URL(connection.credentials.url);
+            const baseUrl = `${urlObj.protocol}//${urlObj.host}`;
+            if (href.startsWith(baseUrl)) {
+              href = href.substring(baseUrl.length);
+            }
+            
+            // Skip the current directory entry
+            if (href === remotePath || href === `${remotePath}/`) {
+              continue;
+            }
+            
+            const size = contentLengthMatch ? parseInt(contentLengthMatch[1], 10) : 0;
+            const modifiedTime = lastModifiedMatch ? new Date(lastModifiedMatch[1]) : new Date();
+            
+            files.push({
+              path: href,
+              size,
+              isDirectory: isCollection,
+              modifiedTime,
+              mimeType: isCollection ? undefined : this.getMimeType(href)
+            });
+            
+            // Recursively scan subdirectories
+            if (isCollection && !href.includes('..')) {
+              await scanWebdavDir(href);
+            }
+          }
+        }
+      };
+      
+      // Start scanning from the root path
+      await scanWebdavDir(connection.rootPath);
+      
+      return files;
+    } catch (error) {
+      console.error('Error listing WebDAV files:', error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Upload a file to Dropbox
+   */
+  private async uploadToDropbox(
+    connection: PlatformConnection,
+    remotePath: string,
+    fileContent: Buffer
+  ): Promise<{ bytesTransferred: number }> {
+    try {
+      const dbx = this.getDropboxClient(connection);
+      
+      // Ensure the path is formatted correctly for Dropbox
+      if (!remotePath.startsWith('/')) {
+        remotePath = '/' + remotePath;
+      }
+      
+      const result = await dbx.filesUpload({
+        path: remotePath,
+        contents: fileContent,
+        mode: { '.tag': 'overwrite' }
+      });
+      
+      return { bytesTransferred: fileContent.length };
+    } catch (error) {
+      console.error(`Error uploading to Dropbox ${remotePath}:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Download a file from Dropbox
+   */
+  private async downloadFromDropbox(
+    connection: PlatformConnection,
+    remotePath: string,
+    localPath: string
+  ): Promise<{ bytesTransferred: number }> {
+    try {
+      const dbx = this.getDropboxClient(connection);
+      
+      // Ensure the path is formatted correctly for Dropbox
+      if (!remotePath.startsWith('/')) {
+        remotePath = '/' + remotePath;
+      }
+      
+      const result = await dbx.filesDownload({ path: remotePath });
+      
+      // Write file to disk
+      if ('fileBinary' in result.result) {
+        fs.writeFileSync(localPath, result.result.fileBinary as Buffer);
+        
+        // Process the file (e.g., for document indexing)
+        await processFile(localPath);
+        
+        return { bytesTransferred: (result.result as any).size || 0 };
+      } else {
+        throw new Error('Failed to download file from Dropbox');
+      }
+    } catch (error) {
+      console.error(`Error downloading from Dropbox ${remotePath}:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Upload a file via SFTP (Ubuntu/Windows)
+   */
+  private async uploadToSftp(
+    connection: PlatformConnection,
+    remotePath: string,
+    localPath: string
+  ): Promise<{ bytesTransferred: number }> {
+    const client = new SFTPClient();
+    
+    try {
+      await client.connect({
+        host: connection.credentials.host,
+        port: connection.credentials.port || 22,
+        username: connection.credentials.username,
+        password: connection.credentials.password,
+        privateKey: connection.credentials.privateKey
+      });
+      
+      // Ensure the remote directory exists
+      const remoteDir = path.posix.dirname(remotePath);
+      await this.ensureRemoteSftpDirectory(client, remoteDir);
+      
+      // Upload the file
+      const fileStats = fs.statSync(localPath);
+      await client.fastPut(localPath, remotePath);
+      
+      await client.end();
+      return { bytesTransferred: fileStats.size };
+    } catch (error) {
+      console.error(`Error uploading to SFTP ${remotePath}:`, error);
+      
+      if (client.sftp) {
+        await client.end();
+      }
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Download a file via SFTP (Ubuntu/Windows)
+   */
+  private async downloadFromSftp(
+    connection: PlatformConnection,
+    remotePath: string,
+    localPath: string
+  ): Promise<{ bytesTransferred: number }> {
+    const client = new SFTPClient();
+    
+    try {
+      await client.connect({
+        host: connection.credentials.host,
+        port: connection.credentials.port || 22,
+        username: connection.credentials.username,
+        password: connection.credentials.password,
+        privateKey: connection.credentials.privateKey
+      });
+      
+      // Get file stats to determine size
+      const stats = await client.stat(remotePath);
+      
+      // Ensure local directory exists
+      this.ensureDirectoryExists(path.dirname(localPath));
+      
+      // Download the file
+      await client.fastGet(remotePath, localPath);
+      
+      // Process the file (e.g., for document indexing)
+      await processFile(localPath);
+      
+      await client.end();
+      return { bytesTransferred: stats.size };
+    } catch (error) {
+      console.error(`Error downloading from SFTP ${remotePath}:`, error);
+      
+      if (client.sftp) {
+        await client.end();
+      }
+      
+      throw error;
+    }
+  }
+  
+  /**
+   * Upload a file via WebDAV (iOS)
+   */
+  private async uploadToWebdav(
+    connection: PlatformConnection,
+    remotePath: string,
+    fileContent: Buffer
+  ): Promise<{ bytesTransferred: number }> {
+    try {
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/octet-stream'
+      };
+      
+      // Add authentication
+      if (connection.credentials.username && connection.credentials.password) {
+        const authString = `${connection.credentials.username}:${connection.credentials.password}`;
+        headers['Authorization'] = `Basic ${Buffer.from(authString).toString('base64')}`;
+      }
+      
+      // Make sure the parent directory exists
+      await this.ensureWebdavDirectory(connection, path.posix.dirname(remotePath));
+      
+      // Make a PUT request to upload the file
+      const response = await fetch(`${connection.credentials.url}${remotePath}`, {
+        method: 'PUT',
+        headers,
+        body: fileContent
+      });
+      
+      if (response.status >= 400) {
+        throw new Error(`WebDAV upload error: ${response.status} ${response.statusText}`);
+      }
+      
+      return { bytesTransferred: fileContent.length };
+    } catch (error) {
+      console.error(`Error uploading to WebDAV ${remotePath}:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Download a file via WebDAV (iOS)
+   */
+  private async downloadFromWebdav(
+    connection: PlatformConnection,
+    remotePath: string,
+    localPath: string
+  ): Promise<{ bytesTransferred: number }> {
+    try {
+      const headers: Record<string, string> = {};
+      
+      // Add authentication
+      if (connection.credentials.username && connection.credentials.password) {
+        const authString = `${connection.credentials.username}:${connection.credentials.password}`;
+        headers['Authorization'] = `Basic ${Buffer.from(authString).toString('base64')}`;
+      }
+      
+      // Make a GET request to download the file
+      const response = await fetch(`${connection.credentials.url}${remotePath}`, {
+        method: 'GET',
+        headers
+      });
+      
+      if (response.status >= 400) {
+        throw new Error(`WebDAV download error: ${response.status} ${response.statusText}`);
+      }
+      
+      // Get the file content
+      const buffer = await response.arrayBuffer();
+      
+      // Ensure directory exists
+      this.ensureDirectoryExists(path.dirname(localPath));
+      
+      // Write to local file
+      fs.writeFileSync(localPath, Buffer.from(buffer));
+      
+      // Process the file (e.g., for document indexing)
+      await processFile(localPath);
+      
+      // Get content length
+      const contentLength = parseInt(response.headers.get('content-length') || '0', 10);
+      
+      return { bytesTransferred: contentLength || buffer.byteLength };
+    } catch (error) {
+      console.error(`Error downloading from WebDAV ${remotePath}:`, error);
+      throw error;
+    }
+  }
+  
+  /**
+   * Ensure a directory exists on the SFTP server
+   */
+  private async ensureRemoteSftpDirectory(client: SFTPClient, remotePath: string): Promise<void> {
+    const dirs = remotePath.split('/').filter(Boolean);
+    let currentPath = '';
+    
+    for (const dir of dirs) {
+      currentPath += '/' + dir;
+      
+      try {
+        const stats = await client.stat(currentPath);
+        
+        if (!stats.isDirectory()) {
+          throw new Error(`Path exists but is not a directory: ${currentPath}`);
+        }
+      } catch (error) {
+        // If the error is "No such file", create the directory
+        try {
+          await client.mkdir(currentPath);
+        } catch (mkdirError) {
+          console.error(`Error creating directory ${currentPath}:`, mkdirError);
+          throw mkdirError;
+        }
+      }
+    }
+  }
+  
+  /**
+   * Ensure a directory exists on the WebDAV server
+   */
+  private async ensureWebdavDirectory(connection: PlatformConnection, remotePath: string): Promise<void> {
+    const dirs = remotePath.split('/').filter(Boolean);
+    let currentPath = '';
+    
+    for (const dir of dirs) {
+      currentPath += '/' + dir;
+      
+      try {
+        // Check if directory exists
+        const headers: Record<string, string> = {
+          'Depth': '0'
+        };
+        
+        // Add authentication
+        if (connection.credentials.username && connection.credentials.password) {
+          const authString = `${connection.credentials.username}:${connection.credentials.password}`;
+          headers['Authorization'] = `Basic ${Buffer.from(authString).toString('base64')}`;
+        }
+        
+        const checkResponse = await fetch(`${connection.credentials.url}${currentPath}`, {
+          method: 'PROPFIND',
+          headers
+        });
+        
+        if (checkResponse.status >= 400) {
+          // Directory doesn't exist, create it
+          const createResponse = await fetch(`${connection.credentials.url}${currentPath}`, {
+            method: 'MKCOL',
+            headers: {
+              ...(headers.Authorization ? { Authorization: headers.Authorization } : {})
+            }
+          });
+          
+          if (createResponse.status >= 400) {
+            throw new Error(`Failed to create WebDAV directory: ${createResponse.status} ${createResponse.statusText}`);
+          }
+        }
+      } catch (error) {
+        console.error(`Error ensuring WebDAV directory ${currentPath}:`, error);
+        throw error;
+      }
+    }
+  }
+  
+  /**
+   * Ensure a local directory exists
+   */
+  private ensureDirectoryExists(dir: string): void {
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+  }
+  
+  /**
+   * Get a Dropbox client instance
+   */
+  private getDropboxClient(connection: PlatformConnection): Dropbox {
+    return new Dropbox({ 
+      accessToken: connection.credentials.accessToken,
+      fetch
     });
   }
   
-  // Helper method to get MIME type from filename
-  private getMimeType(filename: string): string {
-    const extension = path.extname(filename).toLowerCase();
+  /**
+   * Get the local directory path for a connection
+   */
+  private getLocalDirectoryPath(connection: PlatformConnection): string {
+    return path.join(this.uploadDir, connection.id);
+  }
+  
+  /**
+   * Get the local file path for a specific remote file
+   */
+  private getLocalFilePath(connection: PlatformConnection, remotePath: string): string {
+    // Normalize the remote path (remove leading slash and connection root path)
+    let normalizedPath = remotePath;
+    if (normalizedPath.startsWith('/')) {
+      normalizedPath = normalizedPath.substring(1);
+    }
     
-    // Simple MIME type mapping
-    const mimeTypes: Record<string, string> = {
-      '.jpg': 'image/jpeg',
-      '.jpeg': 'image/jpeg',
-      '.png': 'image/png',
-      '.gif': 'image/gif',
-      '.pdf': 'application/pdf',
-      '.doc': 'application/msword',
-      '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      '.xls': 'application/vnd.ms-excel',
-      '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      '.txt': 'text/plain',
-      '.html': 'text/html',
-      '.htm': 'text/html',
-      '.sh': 'text/x-shellscript',
-      '.py': 'text/x-python',
-      '.js': 'text/javascript',
-      '.json': 'application/json',
-      '.xml': 'application/xml',
-      '.zip': 'application/zip',
-      '.tar': 'application/x-tar',
-      '.gz': 'application/gzip'
-    };
+    // If the remote path starts with the connection root path, remove it
+    const rootPath = connection.rootPath.startsWith('/') 
+      ? connection.rootPath.substring(1) 
+      : connection.rootPath;
     
-    return mimeTypes[extension] || 'application/octet-stream';
+    if (normalizedPath.startsWith(rootPath)) {
+      normalizedPath = normalizedPath.substring(rootPath.length);
+    }
+    
+    if (normalizedPath.startsWith('/')) {
+      normalizedPath = normalizedPath.substring(1);
+    }
+    
+    return path.join(this.getLocalDirectoryPath(connection), normalizedPath);
+  }
+  
+  /**
+   * Mark an operation as failed
+   */
+  private async failOperation(operationId: string, errorMessage: string): Promise<void> {
+    await storage.updateSyncOperation(operationId, {
+      status: SyncStatus.FAILED,
+      endTime: new Date(),
+      errors: [{ path: '', message: errorMessage }]
+    });
   }
 }
 
-/**
- * Windows synchronization handler using SMB/CIFS
- */
-export class WindowsSyncHandler extends PlatformSyncHandler {
-  private smbClient: any; // Would be the SMB client
-  
-  constructor(connection: PlatformConnection) {
-    super(connection);
-    
-    // Initialize SMB client
-    // This would normally use a library like samba-client or similar
-    this.smbClient = null; // Placeholder
-  }
-  
-  async testConnection(): Promise<boolean> {
-    try {
-      // In a real implementation, this would test SMB connection
-      // Example using samba-client would try to list a directory
-      return true;
-    } catch (error) {
-      console.error('SMB connection test failed:', error);
-      return false;
-    }
-  }
-  
-  async listItems(directoryPath: string): Promise<SyncItem[]> {
-    try {
-      // In a real implementation, this would list files from SMB share
-      
-      // Simulate response
-      const items: SyncItem[] = [];
-      
-      // For demonstration purposes only
-      items.push({
-        id: uuidv4(),
-        path: path.join(directoryPath, 'report.docx'),
-        isDirectory: false,
-        size: 5 * 1024 * 1024, // 5 MB
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        hash: 'abcd1234efgh5678',
-        lastModified: new Date(),
-        syncStatus: SyncStatus.PENDING
-      });
-      
-      return items;
-    } catch (error) {
-      console.error('Failed to list SMB items:', error);
-      return [];
-    }
-  }
-  
-  async downloadFile(remotePath: string, localPath: string): Promise<boolean> {
-    try {
-      // In a real implementation, this would download from SMB share
-      return true;
-    } catch (error) {
-      console.error('Failed to download file from SMB share:', error);
-      return false;
-    }
-  }
-  
-  async uploadFile(localPath: string, remotePath: string): Promise<boolean> {
-    try {
-      // In a real implementation, this would upload to SMB share
-      return true;
-    } catch (error) {
-      console.error('Failed to upload file to SMB share:', error);
-      return false;
-    }
-  }
-  
-  async createDirectory(remotePath: string): Promise<boolean> {
-    try {
-      // In a real implementation, this would create a directory on SMB share
-      return true;
-    } catch (error) {
-      console.error('Failed to create directory on SMB share:', error);
-      return false;
-    }
-  }
-  
-  async deleteItem(remotePath: string): Promise<boolean> {
-    try {
-      // In a real implementation, this would delete from SMB share
-      return true;
-    } catch (error) {
-      console.error('Failed to delete item from SMB share:', error);
-      return false;
-    }
-  }
-  
-  async getItemMetadata(remotePath: string): Promise<SyncItem | null> {
-    try {
-      // In a real implementation, this would get metadata from SMB share
-      
-      // Simulate response
-      const item: SyncItem = {
-        id: uuidv4(),
-        path: remotePath,
-        isDirectory: remotePath.endsWith('\\') || remotePath.endsWith('/'),
-        size: 5 * 1024 * 1024, // 5 MB
-        mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        hash: 'abcd1234efgh5678',
-        lastModified: new Date(),
-        syncStatus: SyncStatus.PENDING
-      };
-      
-      return item;
-    } catch (error) {
-      console.error('Failed to get item metadata from SMB share:', error);
-      return null;
-    }
-  }
-}
-
-/**
- * Main platform synchronization manager
- */
-export class PlatformSyncManager {
-  private connections: Map<string, PlatformConnection> = new Map();
-  private syncHandlers: Map<string, PlatformSyncHandler> = new Map();
-  private activeOperations: Map<string, SyncOperation> = new Map();
-  private syncItems: Map<string, SyncItem> = new Map();
-  
-  constructor() {
-    // Load saved connections
-    this.loadConnections();
-    
-    // Set up periodic sync based on connection frequencies
-    setInterval(() => this.checkScheduledSync(), 60000); // Check every minute
-  }
-  
-  /**
-   * Load saved connections from storage
-   */
-  private async loadConnections(): Promise<void> {
-    try {
-      // In a real implementation, this would load from database
-      // const savedConnections = await storage.getPlatformConnections();
-      // savedConnections.forEach(conn => this.addConnection(conn));
-    } catch (error) {
-      console.error('Error loading platform connections:', error);
-    }
-  }
-  
-  /**
-   * Check for scheduled synchronizations
-   */
-  private async checkScheduledSync(): Promise<void> {
-    const now = new Date();
-    
-    for (const connection of this.connections.values()) {
-      if (!connection.isEnabled) continue;
-      
-      // Skip if there's an active operation for this connection
-      if (Array.from(this.activeOperations.values()).some(op => 
-        op.connectionId === connection.id && 
-        op.status === SyncStatus.IN_PROGRESS
-      )) {
-        continue;
-      }
-      
-      // If it's time to sync based on frequency
-      if (!connection.lastSyncDate || 
-          (now.getTime() - connection.lastSyncDate.getTime()) >= (connection.syncFrequency * 60 * 1000)) {
-        this.startSync(connection.id);
-      }
-    }
-  }
-  
-  /**
-   * Add a new platform connection
-   */
-  async addConnection(connection: Omit<PlatformConnection, 'id'>): Promise<PlatformConnection> {
-    const id = uuidv4();
-    
-    const newConnection: PlatformConnection = {
-      ...connection,
-      id
-    };
-    
-    this.connections.set(id, newConnection);
-    
-    // Create appropriate handler
-    this.createSyncHandler(newConnection);
-    
-    // Save to storage
-    // await storage.savePlatformConnection(newConnection);
-    
-    return newConnection;
-  }
-  
-  /**
-   * Update an existing platform connection
-   */
-  async updateConnection(id: string, updates: Partial<Omit<PlatformConnection, 'id'>>): Promise<PlatformConnection | null> {
-    const connection = this.connections.get(id);
-    if (!connection) return null;
-    
-    const updatedConnection: PlatformConnection = {
-      ...connection,
-      ...updates
-    };
-    
-    this.connections.set(id, updatedConnection);
-    
-    // Update handler if necessary
-    if (updates.platform || updates.credentials) {
-      this.createSyncHandler(updatedConnection);
-    }
-    
-    // Update in storage
-    // await storage.updatePlatformConnection(id, updatedConnection);
-    
-    return updatedConnection;
-  }
-  
-  /**
-   * Get connection by ID
-   */
-  getConnection(id: string): PlatformConnection | undefined {
-    return this.connections.get(id);
-  }
-  
-  /**
-   * List all connections
-   */
-  listConnections(): PlatformConnection[] {
-    return Array.from(this.connections.values());
-  }
-  
-  /**
-   * Delete a connection
-   */
-  async deleteConnection(id: string): Promise<boolean> {
-    const success = this.connections.delete(id);
-    
-    if (success) {
-      this.syncHandlers.delete(id);
-      
-      // Remove from storage
-      // await storage.deletePlatformConnection(id);
-    }
-    
-    return success;
-  }
-  
-  /**
-   * Test a connection
-   */
-  async testConnection(id: string): Promise<boolean> {
-    const handler = this.syncHandlers.get(id);
-    if (!handler) return false;
-    
-    return handler.testConnection();
-  }
-  
-  /**
-   * Create appropriate sync handler for connection
-   */
-  private createSyncHandler(connection: PlatformConnection): void {
-    let handler: PlatformSyncHandler;
-    
-    switch (connection.platform) {
-      case PlatformType.DROPBOX:
-        handler = new DropboxSyncHandler(connection);
-        break;
-      case PlatformType.IOS:
-        handler = new IOSSyncHandler(connection);
-        break;
-      case PlatformType.UBUNTU:
-        handler = new UbuntuSyncHandler(connection);
-        break;
-      case PlatformType.WINDOWS:
-        handler = new WindowsSyncHandler(connection);
-        break;
-      default:
-        console.error(`Unsupported platform type: ${connection.platform}`);
-        return;
-    }
-    
-    this.syncHandlers.set(connection.id, handler);
-  }
-  
-  /**
-   * Start synchronization for a connection
-   */
-  async startSync(connectionId: string): Promise<SyncOperation | null> {
-    const connection = this.connections.get(connectionId);
-    if (!connection) return null;
-    
-    const handler = this.syncHandlers.get(connectionId);
-    if (!handler) return null;
-    
-    // Create sync operation
-    const operationId = uuidv4();
-    const operation: SyncOperation = {
-      id: operationId,
-      connectionId,
-      startTime: new Date(),
-      status: SyncStatus.IN_PROGRESS,
-      itemsProcessed: 0,
-      bytesTransferred: 0,
-      errors: [],
-      conflictItems: []
-    };
-    
-    this.activeOperations.set(operationId, operation);
-    
-    // Start sync process in background
-    this.performSync(operation, handler, connection)
-      .catch(error => console.error('Error in sync operation:', error));
-    
-    return operation;
-  }
-  
-  /**
-   * Perform actual synchronization
-   */
-  private async performSync(
-    operation: SyncOperation,
-    handler: PlatformSyncHandler,
-    connection: PlatformConnection
-  ): Promise<void> {
-    try {
-      // Step 1: List remote items
-      const remotePath = connection.rootPath;
-      const remoteItems = await handler.listItems(remotePath);
-      
-      // In a real implementation, we would:
-      // 1. List local items
-      // 2. Compare remote and local items to determine what needs to be synced
-      // 3. Handle conflicts
-      // 4. Perform uploads, downloads, and deletions
-      
-      // For this example, we'll simulate progress
-      operation.itemsTotal = remoteItems.length;
-      
-      // Process each item
-      for (const item of remoteItems) {
-        // Save item details
-        this.syncItems.set(item.id, item);
-        
-        // Update operation progress
-        operation.itemsProcessed++;
-        operation.bytesTransferred += item.size || 0;
-        
-        // Simulate some work
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Update operation
-        this.activeOperations.set(operation.id, operation);
-      }
-      
-      // Update connection with last sync date
-      connection.lastSyncDate = new Date();
-      this.connections.set(connection.id, connection);
-      
-      // Save updated connection to storage
-      // await storage.updatePlatformConnection(connection.id, connection);
-      
-      // Complete operation
-      operation.status = SyncStatus.COMPLETED;
-      operation.endTime = new Date();
-      this.activeOperations.set(operation.id, operation);
-      
-    } catch (error) {
-      console.error('Sync operation failed:', error);
-      
-      // Mark operation as failed
-      operation.status = SyncStatus.FAILED;
-      operation.endTime = new Date();
-      operation.errors.push({
-        path: connection.rootPath,
-        message: error instanceof Error ? error.message : String(error),
-        code: 'SYNC_FAILED'
-      });
-      
-      this.activeOperations.set(operation.id, operation);
-    }
-  }
-  
-  /**
-   * Get sync operation by ID
-   */
-  getSyncOperation(id: string): SyncOperation | undefined {
-    return this.activeOperations.get(id);
-  }
-  
-  /**
-   * Get all sync operations for a connection
-   */
-  getConnectionSyncOperations(connectionId: string): SyncOperation[] {
-    return Array.from(this.activeOperations.values())
-      .filter(op => op.connectionId === connectionId)
-      .sort((a, b) => b.startTime.getTime() - a.startTime.getTime()); // Most recent first
-  }
-  
-  /**
-   * Resolve a sync conflict
-   */
-  async resolveConflict(
-    itemId: string, 
-    resolution: 'local' | 'remote' | 'rename' | 'manual'
-  ): Promise<SyncItem | null> {
-    const item = this.syncItems.get(itemId);
-    if (!item) return null;
-    
-    // Update resolution strategy
-    item.conflictResolution = resolution;
-    item.syncStatus = SyncStatus.PENDING;
-    
-    this.syncItems.set(itemId, item);
-    
-    // In a real implementation, we would reprocess the item
-    // based on the chosen resolution strategy
-    
-    return item;
-  }
-  
-  /**
-   * Get sync item by ID
-   */
-  getSyncItem(id: string): SyncItem | undefined {
-    return this.syncItems.get(id);
-  }
-  
-  /**
-   * List sync items for a connection
-   */
-  listConnectionSyncItems(connectionId: string): SyncItem[] {
-    // In a real implementation, we would filter items by connection
-    // For now, just return all items
-    return Array.from(this.syncItems.values());
-  }
-}
-
-// Export singleton instance
+// Create and export the singleton instance
 export const platformSyncManager = new PlatformSyncManager();
+
+// Initialize on startup
+platformSyncManager.initialize()
+  .catch(error => console.error('Failed to initialize PlatformSyncManager:', error));

@@ -3,9 +3,12 @@ import { Strategy, type VerifyFunction } from "openid-client/passport";
 
 import passport from "passport";
 import session from "express-session";
-import type { Express, RequestHandler, Request } from "express";
+import createMemoryStore from "memorystore";
+import type { Express, RequestHandler } from "express";
 import { storage } from "./storage";
-import { customDomain, getFullyQualifiedDomain, isCustomDomain } from "./customDomain";
+
+// Create memory store for sessions
+const MemoryStore = createMemoryStore(session);
 
 if (!process.env.REPLIT_DOMAINS) {
   throw new Error("Environment variable REPLIT_DOMAINS not provided");
@@ -13,121 +16,77 @@ if (!process.env.REPLIT_DOMAINS) {
 
 export async function setupAuth(app: Express) {
   const sessionSettings: session.SessionOptions = {
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET || "dev-session-secret",
     resave: false,
     saveUninitialized: false,
-    store: storage.sessionStore,
-    cookie: {
-      secure: true,
-      sameSite: 'none',
-    }
+    store: new MemoryStore({
+      checkPeriod: 86400000 // 24 hours
+    }),
   };
   app.set("trust proxy", 1);
   app.use(session(sessionSettings));
   app.use(passport.initialize());
   app.use(passport.session());
 
-  const replId = process.env.REPL_ID!;
+  const replId = process.env.REPL_ID || "dev-repl-id";
   const config = await client.discovery(
     new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
     replId,
   );
 
-  // Dynamic callback URL function based on request's hostname
-  const getCallbackURL = (req: Request): string => {
-    if (isCustomDomain(req)) {
-      return `https://${customDomain}/api/callback`;
-    }
-    const hostname = `${process.env.REPLIT_DOMAINS!.split(",")[0]}`;
-    return `https://${hostname}/api/callback`;
-  };
-
+  const hostname = `${process.env.REPLIT_DOMAINS!.split(",")[0]}`;
+  const callbackURL = `https://${hostname}/api/callback`;
   const verify: VerifyFunction = async (
     tokens: client.TokenEndpointResponse & client.TokenEndpointResponseHelpers,
     verified: passport.AuthenticateCallback) => {
     const claims = tokens.claims();
     if (!claims) {
-      return;
+      return
     }
 
     const userInfoResponse = await client.fetchUserInfo(config, tokens.access_token, claims.sub);
 
-    // Save the authentication time to handle session expiry
-    const nowTime = Math.floor(Date.now() / 1000);
-    const userWithMeta = {
-      ...userInfoResponse,
-      auth_time: nowTime,
-    };
-
-    verified(null, userWithMeta);
+    verified(null, userInfoResponse);
   };
 
-  // Configure the authentication strategy
-  passport.use('replit', new Strategy({ config, scope: "openid email profile" }, verify));
+  const strategy = new Strategy(
+    {
+      config,
+      scope: "openid email profile",
+      callbackURL,
+    },
+    verify,
+  );
+  passport.use(strategy);
 
   passport.serializeUser((user: Express.User, cb) => cb(null, user));
   passport.deserializeUser((user: Express.User, cb) => cb(null, user));
 
-  // Login endpoint using dynamic callback URL
-  app.get("/api/login", (req, res, next) => {
-    const callbackURL = getCallbackURL(req);
-    const strategy = new Strategy({ 
-      config, 
-      scope: "openid email profile",
-      callbackURL 
-    }, verify);
-    
-    passport.use('replit', strategy);
-    passport.authenticate('replit', { prompt: 'login' })(req, res, next);
-  });
+  app.get("/api/login", passport.authenticate(strategy.name));
 
-  // Callback handler with dynamic callback URL
-  app.get("/api/callback", (req, res, next) => {
-    const callbackURL = getCallbackURL(req);
-    const strategy = new Strategy({ 
-      config, 
-      scope: "openid email profile",
-      callbackURL 
-    }, verify);
-    
-    passport.use('replit', strategy);
-    passport.authenticate('replit', {
+  app.get(
+    "/api/callback",
+    passport.authenticate(strategy.name, {
       successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login"
-    })(req, res, next);
-  });
+      failureRedirect: "/api/login",
+    }),
+  );
 
-  // Logout endpoint that redirects to the custom domain if applicable
   app.get("/api/logout", (req, res) => {
     req.logout(() => {
-      const redirectUri = getFullyQualifiedDomain(req);
       res.redirect(
         client.buildEndSessionUrl(config, {
           client_id: replId,
-          post_logout_redirect_uri: redirectUri,
+          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
         }).href,
       );
     });
   });
-  
-  // Handle redirects to login page
-  app.get("/login", (req, res) => {
-    res.redirect("/api/login");
-  });
 }
 
-// Enhanced authentication middleware that redirects to login for UI requests
-// and returns 401 for API requests
 export const isAuthenticated: RequestHandler = (req, res, next) => {
   if (req.isAuthenticated()) {
     return next();
   }
-  
-  // If it's an API request, return 401
-  if (req.path.startsWith('/api/')) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-  
-  // Otherwise, redirect to login
-  res.redirect("/api/login");
+  res.status(401).json({ message: "Unauthorized" });
 }

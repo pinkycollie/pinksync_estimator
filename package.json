@@ -75,7 +75,7 @@
     "node-icloud": "^1.0.0",
     "node-schedule": "^2.1.1",
     "openai": "^4.91.1",
-    "openid-client": "^6.4.0",
+    "openid-client": "^6.4.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
     "react": "^18.3.1",

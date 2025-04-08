@@ -1,93 +1,100 @@
-import { pgTable, text, uuid, boolean, integer, json, timestamp } from 'drizzle-orm/pg-core';
+import { pgTable, text, timestamp, boolean, integer, json, pgEnum } from 'drizzle-orm/pg-core';
 import { createInsertSchema } from 'drizzle-zod';
 import { z } from 'zod';
+import { sql } from 'drizzle-orm';
 
 /**
  * Enum values for platform types
  */
 export const PlatformType = {
-  DROPBOX: 'dropbox',
-  IOS: 'ios',
-  UBUNTU: 'ubuntu',
-  WINDOWS: 'windows',
-  WEB: 'web'
+  DROPBOX: 'DROPBOX',
+  IOS: 'IOS',
+  UBUNTU: 'UBUNTU',
+  WINDOWS: 'WINDOWS',
+  WEB: 'WEB'
 } as const;
 
 /**
  * Enum values for sync direction
  */
 export const SyncDirection = {
-  UPLOAD: 'upload', // Local to remote
-  DOWNLOAD: 'download', // Remote to local
-  BIDIRECTIONAL: 'bidirectional' // Both ways
+  UPLOAD: 'UPLOAD',
+  DOWNLOAD: 'DOWNLOAD',
+  BIDIRECTIONAL: 'BIDIRECTIONAL'
 } as const;
 
 /**
  * Enum values for sync status
  */
 export const SyncStatus = {
-  PENDING: 'pending',
-  IN_PROGRESS: 'in_progress',
-  COMPLETED: 'completed',
-  FAILED: 'failed',
-  CONFLICT: 'conflict'
+  PENDING: 'PENDING',
+  IN_PROGRESS: 'IN_PROGRESS',
+  COMPLETED: 'COMPLETED',
+  FAILED: 'FAILED',
+  CONFLICT: 'CONFLICT'
 } as const;
+
+// Define the enum types for the database
+const platformTypeEnum = pgEnum('platform_type', ['DROPBOX', 'IOS', 'UBUNTU', 'WINDOWS', 'WEB']);
+const syncDirectionEnum = pgEnum('sync_direction', ['UPLOAD', 'DOWNLOAD', 'BIDIRECTIONAL']);
+const syncStatusEnum = pgEnum('sync_status', ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'CONFLICT']);
+const conflictResolutionEnum = pgEnum('conflict_resolution', ['local', 'remote', 'rename', 'manual']);
 
 /**
  * Platform connection table schema
  */
 export const platformConnections = pgTable('platform_connections', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  platform: text('platform').notNull().$type<keyof typeof PlatformType>(),
+  id: text('id').primaryKey().default(sql`gen_random_uuid()`),
   name: text('name').notNull(),
+  platform: platformTypeEnum('platform').notNull(),
   rootPath: text('root_path').notNull(),
   credentials: json('credentials').notNull().$type<Record<string, any>>(),
-  lastSyncDate: timestamp('last_sync_date'),
-  isEnabled: boolean('is_enabled').notNull().default(true),
-  syncDirection: text('sync_direction').notNull().$type<keyof typeof SyncDirection>().default(SyncDirection.BIDIRECTIONAL),
-  syncFrequency: integer('sync_frequency').notNull().default(60), // In minutes
-  excludedPaths: json('excluded_paths').notNull().$type<string[]>().default([]),
-  includedExtensions: json('included_extensions').notNull().$type<string[]>().default([]),
-  excludedExtensions: json('excluded_extensions').notNull().$type<string[]>().default([]),
-  metadata: json('metadata').notNull().$type<Record<string, any>>().default({}),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+  lastSyncDate: timestamp('last_sync_date', { mode: 'date' }),
+  isEnabled: boolean('is_enabled').default(true).notNull(),
+  syncDirection: syncDirectionEnum('sync_direction').default(SyncDirection.BIDIRECTIONAL).notNull(),
+  syncInterval: integer('sync_interval'), // In minutes, null means manual sync only
+  syncOnStartup: boolean('sync_on_startup').default(false).notNull(),
+  syncOnSchedule: boolean('sync_on_schedule').default(false).notNull(),
+  metadata: json('metadata').$type<Record<string, any>>(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
 /**
  * Sync operations table schema
  */
 export const syncOperations = pgTable('sync_operations', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  connectionId: uuid('connection_id').notNull().references(() => platformConnections.id, { onDelete: 'cascade' }),
-  startTime: timestamp('start_time').notNull().defaultNow(),
-  endTime: timestamp('end_time'),
-  status: text('status').notNull().$type<keyof typeof SyncStatus>().default(SyncStatus.PENDING),
-  itemsProcessed: integer('items_processed').notNull().default(0),
+  id: text('id').primaryKey().default(sql`gen_random_uuid()`),
+  connectionId: text('connection_id').notNull().references(() => platformConnections.id, { onDelete: 'cascade' }),
+  status: syncStatusEnum('status').default(SyncStatus.PENDING).notNull(),
+  startTime: timestamp('start_time', { mode: 'date' }).notNull(),
+  endTime: timestamp('end_time', { mode: 'date' }),
+  itemsProcessed: integer('items_processed').default(0).notNull(),
   itemsTotal: integer('items_total'),
-  bytesTransferred: integer('bytes_transferred').notNull().default(0),
-  errors: json('errors').notNull().$type<Array<{path: string, message: string, code: string}>>().default([]),
-  conflictItems: json('conflict_items').notNull().$type<string[]>().default([])
+  bytesTransferred: integer('bytes_transferred').default(0).notNull(),
+  errors: json('errors').$type<Array<{ path: string, message: string, code: string }>>().default([]),
+  conflictItems: json('conflict_items').$type<string[]>().default([])
 });
 
 /**
  * Sync items table schema
  */
 export const syncItems = pgTable('sync_items', {
-  id: uuid('id').primaryKey().defaultRandom(),
-  connectionId: uuid('connection_id').notNull().references(() => platformConnections.id, { onDelete: 'cascade' }),
+  id: text('id').primaryKey().default(sql`gen_random_uuid()`),
+  connectionId: text('connection_id').notNull().references(() => platformConnections.id, { onDelete: 'cascade' }),
   path: text('path').notNull(),
   isDirectory: boolean('is_directory').notNull(),
   size: integer('size'),
   mimeType: text('mime_type'),
   hash: text('hash'),
-  lastModified: timestamp('last_modified').notNull(),
-  lastSynced: timestamp('last_synced'),
-  syncStatus: text('sync_status').notNull().$type<keyof typeof SyncStatus>().default(SyncStatus.PENDING),
-  platformSpecificData: json('platform_specific_data').$type<Record<string, any>>(),
-  conflictResolution: text('conflict_resolution').$type<'local' | 'remote' | 'rename' | 'manual'>(),
-  createdAt: timestamp('created_at').notNull().defaultNow(),
-  updatedAt: timestamp('updated_at').notNull().defaultNow()
+  lastSyncedAt: timestamp('last_synced_at', { mode: 'date' }),
+  syncStatus: syncStatusEnum('sync_status').default(SyncStatus.PENDING).notNull(),
+  conflict: boolean('conflict').default(false).notNull(),
+  localModified: timestamp('local_modified', { mode: 'date' }),
+  remoteModified: timestamp('remote_modified', { mode: 'date' }),
+  conflictResolution: conflictResolutionEnum('conflict_resolution'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
 /**
@@ -107,8 +114,7 @@ export const insertPlatformConnectionSchema = createInsertSchema(platformConnect
 export type SyncOperation = typeof syncOperations.$inferSelect;
 export type InsertSyncOperation = typeof syncOperations.$inferInsert;
 export const insertSyncOperationSchema = createInsertSchema(syncOperations).omit({ 
-  id: true, 
-  startTime: true 
+  id: true
 });
 
 /**
@@ -126,20 +132,9 @@ export const insertSyncItemSchema = createInsertSchema(syncItems).omit({
  * Validation schema for platform connection creation
  */
 export const createPlatformConnectionSchema = insertPlatformConnectionSchema.extend({
-  // Add additional validations for platform-specific credentials
-  credentials: z.record(z.any()).refine((val) => {
-    // Validate based on platform
-    if (val.platform === PlatformType.DROPBOX) {
-      return !!val.accessToken;
-    } else if (val.platform === PlatformType.IOS) {
-      return !!val.appleId && !!val.password;
-    } else if (val.platform === PlatformType.UBUNTU) {
-      return !!val.host && !!val.username && (!!val.password || !!val.privateKey);
-    } else if (val.platform === PlatformType.WINDOWS) {
-      return !!val.share && !!val.domain && !!val.username && !!val.password;
-    }
-    return true;
-  }, { message: 'Invalid credentials for the selected platform' })
+  platform: insertPlatformConnectionSchema.shape.platform,
+  credentials: insertPlatformConnectionSchema.shape.credentials,
+  syncDirection: insertPlatformConnectionSchema.shape.syncDirection.optional()
 });
 
 /**

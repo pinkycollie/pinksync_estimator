@@ -1,165 +1,189 @@
-import { useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import Sidebar from '@/components/Sidebar';
-import MobileHeader from '@/components/MobileHeader';
-import SystemStatus from '@/components/dashboard/SystemStatus';
-import QuickActions from '@/components/dashboard/QuickActions';
-import AIRecommendations from '@/components/dashboard/AIRecommendations';
-import RecentFiles from '@/components/dashboard/RecentFiles';
-import Integrations from '@/components/dashboard/Integrations';
-import EntrepreneurIdeas from '@/components/dashboard/EntrepreneurIdeas';
-import ProjectPipeline from '@/components/dashboard/ProjectPipeline';
-import AIHub from '@/components/dashboard/AIHub';
-import ThemeToggle from '@/components/ThemeToggle';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from '@/components/ui/dropdown-menu';
-import { Search, LogOut, User } from 'lucide-react';
-import { useAppContext } from '@/contexts/AppContext';
-import { queryClient } from '@/lib/queryClient';
-import { useAuth } from '@/hooks/useAuth';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
+import { Cloud, Database, FileText, Folder, MessageSquare, LogIn, ArrowRight } from "lucide-react";
 
 export default function Dashboard() {
-  const { sidebarOpen } = useAppContext();
-  
-  // Pre-fetch data for the dashboard
-  useEffect(() => {
-    queryClient.prefetchQuery({ queryKey: ['/api/system/status'] });
-    queryClient.prefetchQuery({ queryKey: ['/api/files/recent'] });
-    queryClient.prefetchQuery({ queryKey: ['/api/recommendations', { active: true }] });
-    queryClient.prefetchQuery({ queryKey: ['/api/integrations'] });
-    queryClient.prefetchQuery({ queryKey: ['/api/entrepreneur/ideas'] });
-    queryClient.prefetchQuery({ queryKey: ['/api/entrepreneur/projects'] });
-  }, []);
-  
-  // Get authenticated user data
-  const { user: authUser, isAuthenticated } = useAuth();
-  
-  // Define the auth user type
-  interface AuthUser {
-    username?: string;
-    email?: string;
-    profile_image_url?: string;
-  }
-  
-  // Ensure authUser is typed correctly
-  const typedAuthUser = (authUser as AuthUser) || {} as AuthUser;
-  
-  // Fetch app user data
-  const { data: user } = useQuery({
-    queryKey: ['/api/user'],
-  });
-  
-  // Handle logout
-  const handleLogout = () => {
-    window.location.href = '/api/logout';
-  };
+  const { user, isLoading, isAuthenticated, login } = useAuth();
 
-  return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar />
-      
-      <MobileHeader />
-      
-      <main className={`flex-1 overflow-y-auto bg-background dark:bg-darkBg md:pt-0 pt-16 transition-all ${
-        sidebarOpen ? 'md:ml-64' : 'ml-0'
-      }`}>
-        <div className="p-4 md:p-6 max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6">
-            <div>
-              <h1 className="text-2xl font-bold">Dashboard</h1>
-              <p className="text-neutral-500 dark:text-neutral-400 mt-1">Your personal command center</p>
-            </div>
-            
-            <div className="flex items-center space-x-3 mt-4 md:mt-0">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
-                <Input 
-                  type="text" 
-                  placeholder="Search..." 
-                  className="w-full md:w-64 pl-10 pr-4 py-2"
-                />
-              </div>
-              
-              <div className="hidden md:block">
-                <ThemeToggle />
-              </div>
-              
-              {/* User menu */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-                    <Avatar className="h-8 w-8">
-                      {typedAuthUser.profile_image_url && (
-                        <AvatarImage 
-                          src={typedAuthUser.profile_image_url} 
-                          alt={typedAuthUser.username || "User avatar"} 
-                        />
-                      )}
-                      <AvatarFallback>{typedAuthUser.username?.substring(0, 2) || "U"}</AvatarFallback>
-                    </Avatar>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="w-56" align="end" forceMount>
-                  <div className="flex flex-col space-y-1 p-2">
-                    <p className="text-sm font-medium leading-none">
-                      {typedAuthUser.username || "User"}
-                    </p>
-                    <p className="text-xs leading-none text-muted-foreground">
-                      {typedAuthUser.email || ""}
-                    </p>
+  const modules = [
+    {
+      title: "Platform Sync",
+      description: "Manage file synchronization across multiple platforms",
+      icon: <Cloud className="h-8 w-8 text-primary" />,
+      href: "/sync",
+      status: "Active"
+    },
+    {
+      title: "Documents",
+      description: "Organize documents with AI-powered version tracking",
+      icon: <FileText className="h-8 w-8 text-primary" />,
+      href: "/documents",
+      status: "Coming Soon"
+    },
+    {
+      title: "Local Files",
+      description: "Browse and manage local file system with AI assistance",
+      icon: <Folder className="h-8 w-8 text-primary" />,
+      href: "/files",
+      status: "Coming Soon"
+    },
+    {
+      title: "Communication",
+      description: "Track emails and messages with git-like versioning",
+      icon: <MessageSquare className="h-8 w-8 text-primary" />,
+      href: "/communication",
+      status: "Coming Soon"
+    },
+    {
+      title: "Database",
+      description: "Manage your centralized productivity database",
+      icon: <Database className="h-8 w-8 text-primary" />,
+      href: "/database",
+      status: "Coming Soon"
+    }
+  ];
+
+  // Show loading state
+  if (isLoading) {
+    return (
+      <div className="container py-10">
+        <div className="flex flex-col gap-8">
+          <div>
+            <Skeleton className="h-10 w-64 mb-4" />
+            <Skeleton className="h-4 w-80" />
+          </div>
+          
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Card key={i} className="overflow-hidden">
+                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                  <Skeleton className="h-6 w-32" />
+                  <Skeleton className="h-8 w-8 rounded" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-4 w-full mb-2" />
+                  <Skeleton className="h-4 w-5/6 mb-6" />
+                  
+                  <div className="flex justify-between items-center">
+                    <Skeleton className="h-4 w-16" />
+                    <Skeleton className="h-8 w-24 rounded" />
                   </div>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <button 
-                      className="w-full cursor-pointer flex items-center" 
-                      onClick={handleLogout}
-                    >
-                      <LogOut className="mr-2 h-4 w-4" />
-                      <span>Log out</span>
-                    </button>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+                </CardContent>
+              </Card>
+            ))}
           </div>
-          
-          {/* System Status */}
-          <SystemStatus />
-          
-          {/* Quick Actions and AI Recommendations */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="lg:col-span-1">
-              <QuickActions />
-            </div>
-            <div className="lg:col-span-2">
-              <AIRecommendations />
-            </div>
-          </div>
-          
-          {/* AI Hub */}
-          <AIHub />
-          
-          {/* Project Pipeline */}
-          <ProjectPipeline />
-          
-          {/* Entrepreneur Ideas */}
-          <EntrepreneurIdeas />
-          
-          {/* Recent Files */}
-          <RecentFiles />
-          
-          {/* Integration Status */}
-          <Integrations />
         </div>
-      </main>
+      </div>
+    );
+  }
+
+  // Show login prompt if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div className="container py-10">
+        <div className="max-w-2xl mx-auto text-center">
+          <h1 className="text-4xl font-bold tracking-tight mb-4">Welcome to Pinky's AI OS</h1>
+          <p className="text-xl text-muted-foreground mb-8">
+            Your AI-powered personal productivity hub for cross-platform file management, 
+            document organization, and workflow automation.
+          </p>
+          
+          <Card className="mb-8">
+            <CardHeader>
+              <CardTitle>Key Features</CardTitle>
+              <CardDescription>Enhance your productivity with these powerful capabilities</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-4 text-left">
+              <div className="flex items-start gap-2">
+                <ArrowRight className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <p className="font-medium">Multi-Platform Synchronization</p>
+                  <p className="text-sm text-muted-foreground">Seamlessly sync files across Ubuntu, Windows, iOS, and cloud services</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <ArrowRight className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <p className="font-medium">AI-Powered Document Management</p>
+                  <p className="text-sm text-muted-foreground">Automatic categorization and version tracking with intelligent tagging</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <ArrowRight className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <p className="font-medium">Deaf-Centric Visual Workflows</p>
+                  <p className="text-sm text-muted-foreground">Visual-centric interfaces with SignYapse API integration for accessibility</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-2">
+                <ArrowRight className="h-5 w-5 text-primary mt-0.5" />
+                <div>
+                  <p className="font-medium">Business Intelligence Tools</p>
+                  <p className="text-sm text-muted-foreground">Opportunity scanning and real estate lifecycle tracking for entrepreneurs</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Button size="lg" onClick={login} className="gap-2">
+            <LogIn className="h-5 w-5" />
+            Log in with Replit to Get Started
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Authenticated dashboard view
+  return (
+    <div className="container py-10">
+      <div className="flex flex-col gap-8">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Welcome, {user?.username || "User"}!</h1>
+          <p className="text-muted-foreground mt-2">
+            Your AI-powered personal productivity hub
+          </p>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {modules.map((module) => (
+            <Card key={module.title} className="overflow-hidden">
+              <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                <CardTitle className="text-xl">{module.title}</CardTitle>
+                {module.icon}
+              </CardHeader>
+              <CardContent>
+                <CardDescription className="text-sm text-muted-foreground mb-4">
+                  {module.description}
+                </CardDescription>
+                
+                <div className="flex justify-between items-center">
+                  <span className={module.status === "Active" 
+                    ? "text-sm font-medium text-green-500" 
+                    : "text-sm font-medium text-amber-500"}>
+                    {module.status}
+                  </span>
+                  
+                  {module.status === "Active" ? (
+                    <Button asChild>
+                      <Link href={module.href}>
+                        Open
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button disabled variant="outline">
+                      Not Available
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

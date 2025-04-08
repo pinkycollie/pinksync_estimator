@@ -1,38 +1,59 @@
-import React, { createContext, useContext, ReactNode } from 'react';
-import { useTheme } from '@/hooks/useTheme';
-import { useSidebarState } from '@/hooks/useSidebarState';
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 
-type AppContextType = {
-  theme: 'light' | 'dark' | 'system';
-  setTheme: (theme: 'light' | 'dark' | 'system') => void;
-  sidebarOpen: boolean;
-  toggleSidebar: () => void;
+type ThemeMode = 'light' | 'dark' | 'system';
+
+interface AppContextType {
+  theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
+}
+
+const defaultContext: AppContextType = {
+  theme: 'system',
+  setTheme: () => {},
 };
 
-const AppContext = createContext<AppContextType | undefined>(undefined);
+const AppContext = createContext<AppContextType>(defaultContext);
 
-export function AppProvider({ children }: { children: ReactNode }) {
-  const { theme, setTheme } = useTheme();
-  const { isOpen, toggleSidebar } = useSidebarState();
+export const useAppContext = () => useContext(AppContext);
 
-  return (
-    <AppContext.Provider
-      value={{
-        theme,
-        setTheme,
-        sidebarOpen: isOpen,
-        toggleSidebar,
-      }}
-    >
-      {children}
-    </AppContext.Provider>
-  );
+interface AppProviderProps {
+  children: ReactNode;
 }
 
-export function useAppContext() {
-  const context = useContext(AppContext);
-  if (context === undefined) {
-    throw new Error('useAppContext must be used within an AppProvider');
-  }
-  return context;
-}
+export const AppProvider = ({ children }: AppProviderProps) => {
+  const [theme, setTheme] = useState<ThemeMode>('system');
+
+  useEffect(() => {
+    // Initialize theme from localStorage if available
+    const savedTheme = localStorage.getItem('theme') as ThemeMode;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  useEffect(() => {
+    // Update localStorage and apply theme changes
+    if (theme) {
+      localStorage.setItem('theme', theme);
+      
+      const root = window.document.documentElement;
+      root.classList.remove('light', 'dark');
+      
+      if (theme === 'system') {
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
+          ? 'dark'
+          : 'light';
+        root.classList.add(systemTheme);
+      } else {
+        root.classList.add(theme);
+      }
+    }
+  }, [theme]);
+
+  const value = {
+    theme,
+    setTheme,
+  };
+
+  return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
+};

@@ -1,354 +1,373 @@
-import { DocumentCategory, DocumentStatus } from '@shared/schema';
-import { storage } from '../storage';
-import { generateHfEmbedding } from './huggingfaceUtils';
-import { cosineSimilarity } from './vectorUtils';
-import path from 'path';
-import fs from 'fs';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
+import OpenAI from 'openai';
+import fetch from 'node-fetch';
+
+// Initialize OpenAI client if API key is available
+const openai = process.env.OPENAI_API_KEY ? new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+}) : null;
+
+// Initialize Hugging Face client if API key is available
+const hfToken = process.env.HUGGINGFACE_API_KEY;
 
 /**
- * Utility functions for document management
+ * Process a file after it's been downloaded or uploaded
+ * This handles file indexing, content extraction, and other document processing tasks
  */
-
-/**
- * Calculate document expiration status
- * @param expirationDate Expiration date of the document
- * @returns Status object with expiration info
- */
-export const getDocumentExpirationStatus = (expirationDate: Date | null): {
-  status: 'valid' | 'expiring' | 'expired';
-  daysRemaining: number | null;
-} => {
-  if (!expirationDate) {
-    return { status: 'valid', daysRemaining: null };
-  }
-
-  const now = new Date();
-  const diffTime = expirationDate.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays <= 0) {
-    return { status: 'expired', daysRemaining: 0 };
-  } else if (diffDays <= 30) {
-    return { status: 'expiring', daysRemaining: diffDays };
-  } else {
-    return { status: 'valid', daysRemaining: diffDays };
-  }
-};
-
-/**
- * Generate version control metrics for documents
- * @param userId User ID
- * @returns Statistics about document versions
- */
-export const generateDocumentVersionMetrics = async (userId: number) => {
+export async function processFile(filePath: string): Promise<void> {
   try {
-    // Get documents for user
-    const documents = await storage.getDocuments(userId);
-    
-    // Get all document versions
-    const versionPromises = documents.map(doc => storage.getDocumentVersions(doc.id));
-    const versionsArrays = await Promise.all(versionPromises);
-    
-    // Calculate metrics
-    const flatVersions = versionsArrays.flat();
-    const docsWithMultipleVersions = documents.filter(doc => 
-      versionsArrays.find(versions => 
-        versions.some(v => v.documentId === doc.id)
-      )?.length > 0
-    ).length;
-    
-    const totalVersions = flatVersions.length;
-    const avgVersionsPerDoc = documents.length ? totalVersions / documents.length : 0;
-    
-    // Document counts by category
-    const categoryCounts = documents.reduce((acc, doc) => {
-      const category = doc.category || 'other';
-      acc[category] = (acc[category] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-    
-    return {
-      totalDocuments: documents.length,
-      totalVersions,
-      docsWithMultipleVersions,
-      avgVersionsPerDoc,
-      categoryCounts
-    };
-  } catch (error) {
-    console.error('Error generating document version metrics:', error);
-    throw error;
-  }
-};
-
-/**
- * Convert a file to a document record
- * @param fileId File ID to convert
- * @param category Document category
- * @param userId User ID
- * @returns Created document ID
- */
-export const convertFileToDocument = async (
-  fileId: number, 
-  category: string,
-  userId: number,
-  metadata: Record<string, any> = {}
-): Promise<number | null> => {
-  try {
-    const file = await storage.getFile(fileId);
-    if (!file) {
-      throw new Error(`File with ID ${fileId} not found`);
+    // Skip processing if file doesn't exist
+    if (!fs.existsSync(filePath)) {
+      console.warn(`File not found for processing: ${filePath}`);
+      return;
     }
     
-    // Create document from file
-    const document = await storage.createDocument({
-      userId,
-      title: file.name,
-      description: file.contentSummary || `File: ${file.path || file.name}`,
-      category,
-      fileId,
-      status: DocumentStatus.ACTIVE,
-      metadata: {
-        ...metadata,
-        sourceFile: {
-          id: file.id,
-          name: file.name,
-          path: file.path,
-          source: file.source,
-          size: file.size,
-          fileType: file.fileType
-        }
-      }
-    });
+    // Get file extension
+    const extension = path.extname(filePath).toLowerCase();
     
-    // Process document for vector search
-    await processDocumentWithVectors(document.id);
-    
-    return document.id;
-  } catch (error) {
-    console.error('Error converting file to document:', error);
-    return null;
-  }
-};
-
-/**
- * Process document content to add vector embeddings
- * @param documentId Document ID to process
- * @returns Updated document
- */
-export const processDocumentWithVectors = async (documentId: number) => {
-  try {
-    const document = await storage.getDocument(documentId);
-    if (!document) {
-      throw new Error(`Document with ID ${documentId} not found`);
+    // Process based on file type
+    if (['.pdf', '.doc', '.docx', '.txt', '.md'].includes(extension)) {
+      // Text-based document
+      await processTextDocument(filePath, extension);
+    } else if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(extension)) {
+      // Image file
+      await processImageFile(filePath, extension);
+    } else if (['.mp3', '.wav', '.ogg', '.m4a'].includes(extension)) {
+      // Audio file
+      await processAudioFile(filePath, extension);
+    } else if (['.mp4', '.mov', '.avi', '.mkv', '.webm'].includes(extension)) {
+      // Video file
+      await processVideoFile(filePath, extension);
     }
     
-    // Get file content if available
-    let contentText = '';
+    // Calculate and store file hash
+    const fileHash = await calculateFileHash(filePath);
     
-    if (document.fileId) {
-      const file = await storage.getFile(document.fileId);
-      if (file && file.path) {
-        try {
-          if (fs.existsSync(file.path)) {
-            // Read file content based on file type
-            const fileType = file.fileType?.toLowerCase() || '';
-            if (['text', 'document', 'pdf', 'doc', 'docx'].includes(fileType)) {
-              contentText = fs.readFileSync(file.path, 'utf-8');
-            }
+    // Index file metadata
+    await indexFileMetadata(filePath, fileHash);
+    
+  } catch (error) {
+    console.error(`Error processing file ${filePath}:`, error);
+  }
+}
+
+/**
+ * Calculate a cryptographic hash of a file
+ */
+async function calculateFileHash(filePath: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+    
+    stream.on('error', err => reject(err));
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
+}
+
+/**
+ * Process a text-based document (PDF, DOCX, TXT, etc.)
+ */
+async function processTextDocument(filePath: string, extension: string): Promise<void> {
+  try {
+    // For now, we'll just extract basic metadata
+    // In a real implementation, use PDF.js, mammoth, etc. for content extraction
+    
+    const stats = fs.statSync(filePath);
+    
+    // For small text files, we can read the content directly
+    if (extension === '.txt' || extension === '.md') {
+      if (stats.size < 1024 * 1024) { // Less than 1MB
+        const content = fs.readFileSync(filePath, 'utf8');
+        
+        // Use AI for content analysis if available
+        if (openai) {
+          try {
+            const analysis = await analyzeTextWithAI(content);
+            // Store analysis results
+            // This would be implemented in a real system
+          } catch (aiError) {
+            console.error('Error analyzing text with AI:', aiError);
           }
-        } catch (fileError) {
-          console.warn(`Could not read file for document ${documentId}:`, fileError);
         }
       }
     }
+  } catch (error) {
+    console.error(`Error processing text document ${filePath}:`, error);
+  }
+}
+
+/**
+ * Process an image file
+ */
+async function processImageFile(filePath: string, extension: string): Promise<void> {
+  try {
+    // Extract basic image metadata
+    const stats = fs.statSync(filePath);
     
-    // If no file content, use document title and description
-    if (!contentText) {
-      contentText = `${document.title}. ${document.description || ''}`;
-      
-      // Add metadata as text if available
-      if (document.metadata && typeof document.metadata === 'object') {
-        try {
-          const metadataStr = JSON.stringify(document.metadata);
-          contentText += ` ${metadataStr}`;
-        } catch (e) {
-          // Ignore metadata parsing errors
-        }
+    // Use AI for image analysis if available
+    if (openai) {
+      try {
+        // Convert image to base64
+        const imageBuffer = fs.readFileSync(filePath);
+        const base64Image = imageBuffer.toString('base64');
+        
+        // Analyze image using OpenAI Vision
+        const analysis = await analyzeImageWithAI(base64Image);
+        
+        // Store analysis results
+        // This would be implemented in a real system
+      } catch (aiError) {
+        console.error('Error analyzing image with AI:', aiError);
       }
     }
     
-    // Generate vector embedding
-    const contentVector = await generateHfEmbedding(contentText);
-    
-    if (!contentVector) {
-      console.warn(`Failed to generate vector embedding for document ID ${documentId}`);
-      return document;
+    // Use Hugging Face for additional image analysis
+    if (hfToken) {
+      try {
+        // Analyze image using Hugging Face
+        const analysis = await analyzeImageWithHuggingFace(filePath);
+        
+        // Store analysis results
+        // This would be implemented in a real system
+      } catch (hfError) {
+        console.error('Error analyzing image with Hugging Face:', hfError);
+      }
     }
     
-    // Update document with vector
-    const updatedDocument = await storage.updateDocument(documentId, {
-      contentVector,
-      isProcessed: true
+  } catch (error) {
+    console.error(`Error processing image file ${filePath}:`, error);
+  }
+}
+
+/**
+ * Process an audio file
+ */
+async function processAudioFile(filePath: string, extension: string): Promise<void> {
+  try {
+    // Extract basic audio metadata
+    const stats = fs.statSync(filePath);
+    
+    // Transcribe audio if OpenAI is available
+    if (openai) {
+      try {
+        const transcription = await transcribeAudioWithAI(filePath);
+        
+        // Store transcription results
+        // This would be implemented in a real system
+      } catch (aiError) {
+        console.error('Error transcribing audio with AI:', aiError);
+      }
+    }
+  } catch (error) {
+    console.error(`Error processing audio file ${filePath}:`, error);
+  }
+}
+
+/**
+ * Process a video file
+ */
+async function processVideoFile(filePath: string, extension: string): Promise<void> {
+  try {
+    // Extract basic video metadata
+    const stats = fs.statSync(filePath);
+    
+    // For actual implementation, you would use ffmpeg or similar
+    // to extract frames, analyze audio, etc.
+    
+  } catch (error) {
+    console.error(`Error processing video file ${filePath}:`, error);
+  }
+}
+
+/**
+ * Index file metadata in the system
+ */
+async function indexFileMetadata(filePath: string, fileHash: string): Promise<void> {
+  try {
+    // Get file stats
+    const stats = fs.statSync(filePath);
+    
+    // Extract filename and extension
+    const filename = path.basename(filePath);
+    const extension = path.extname(filePath).toLowerCase();
+    
+    // Get mime type
+    const mimeType = getMimeType(extension);
+    
+    // Store metadata
+    // In a real implementation, this would store to a vector database or search index
+    // For now, we just log it
+    console.log(`Indexed file: ${filename}, Size: ${stats.size}, Hash: ${fileHash}, Type: ${mimeType}`);
+    
+  } catch (error) {
+    console.error(`Error indexing file metadata ${filePath}:`, error);
+  }
+}
+
+/**
+ * Get mime type from file extension
+ */
+function getMimeType(extension: string): string {
+  const mimeTypes: Record<string, string> = {
+    '.html': 'text/html',
+    '.css': 'text/css',
+    '.js': 'application/javascript',
+    '.json': 'application/json',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.svg': 'image/svg+xml',
+    '.pdf': 'application/pdf',
+    '.doc': 'application/msword',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xls': 'application/vnd.ms-excel',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.txt': 'text/plain',
+    '.md': 'text/markdown',
+    '.csv': 'text/csv',
+    '.zip': 'application/zip',
+    '.mp3': 'audio/mpeg',
+    '.mp4': 'video/mp4',
+    '.wav': 'audio/wav',
+    '.xml': 'application/xml',
+    '.py': 'text/x-python',
+    '.rb': 'text/x-ruby',
+    '.java': 'text/x-java',
+    '.c': 'text/x-c',
+    '.cpp': 'text/x-c++',
+    '.php': 'application/x-php'
+  };
+  
+  return mimeTypes[extension] || 'application/octet-stream';
+}
+
+/**
+ * Analyze text content with OpenAI
+ */
+async function analyzeTextWithAI(text: string): Promise<any> {
+  if (!openai) {
+    throw new Error('OpenAI API key not configured');
+  }
+  
+  try {
+    // Truncate text if it's too long
+    const truncatedText = text.length > 4000 ? text.substring(0, 4000) + '...' : text;
+    
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      messages: [
+        {
+          role: "system",
+          content: "Analyze the following text and extract key information. Provide a summary, key topics, entities, and sentiment. Output in JSON format with these keys: summary, topics, entities, sentiment"
+        },
+        {
+          role: "user",
+          content: truncatedText
+        }
+      ],
+      response_format: { type: "json_object" }
     });
     
-    return updatedDocument;
+    return JSON.parse(response.choices[0].message.content);
   } catch (error) {
-    console.error(`Error processing document ${documentId} for vector search:`, error);
+    console.error('Error analyzing text with OpenAI:', error);
     throw error;
   }
-};
+}
 
 /**
- * Scan for document expiration and update metrics
- * @param userId User ID to process
- * @returns Updated metrics
+ * Analyze image with OpenAI Vision
  */
-export const scanDocumentExpiration = async (userId: number) => {
+async function analyzeImageWithAI(base64Image: string): Promise<any> {
+  if (!openai) {
+    throw new Error('OpenAI API key not configured');
+  }
+  
   try {
-    const documents = await storage.getDocuments(userId);
-    
-    let activeCount = 0;
-    let expiredCount = 0;
-    let expiringCount = 0;
-    
-    // Categorize documents by expiration status
-    for (const doc of documents) {
-      if (!doc.expirationDate) {
-        activeCount++;
-        continue;
-      }
-      
-      const expDate = new Date(doc.expirationDate);
-      const status = getDocumentExpirationStatus(expDate);
-      
-      if (status.status === 'expired') {
-        expiredCount++;
-        // Auto-update document status if expired
-        await storage.updateDocument(doc.id, { status: DocumentStatus.EXPIRED });
-      } else if (status.status === 'expiring') {
-        expiringCount++;
-      } else {
-        activeCount++;
-      }
-    }
-    
-    // Get metrics by category
-    const categories = Object.values(DocumentCategory);
-    const metricsUpdates = [];
-    
-    for (const category of categories) {
-      const categoryDocs = documents.filter(d => d.category === category);
-      
-      if (categoryDocs.length > 0) {
-        const catActiveCount = categoryDocs.filter(d => {
-          if (!d.expirationDate) return true;
-          const status = getDocumentExpirationStatus(new Date(d.expirationDate));
-          return status.status === 'valid';
-        }).length;
-        
-        const catExpiredCount = categoryDocs.filter(d => {
-          if (!d.expirationDate) return false;
-          const status = getDocumentExpirationStatus(new Date(d.expirationDate));
-          return status.status === 'expired';
-        }).length;
-        
-        const catExpiringCount = categoryDocs.filter(d => {
-          if (!d.expirationDate) return false;
-          const status = getDocumentExpirationStatus(new Date(d.expirationDate));
-          return status.status === 'expiring';
-        }).length;
-        
-        // Update metrics for this category
-        const existingMetric = await storage.getDocumentMetricsByCategory(userId, category);
-        
-        if (existingMetric) {
-          metricsUpdates.push(
-            storage.updateDocumentMetrics(existingMetric.id, {
-              totalCount: categoryDocs.length,
-              activeCount: catActiveCount,
-              expiredCount: catExpiredCount,
-              expiringCount: catExpiringCount,
-              lastUpdated: new Date()
-            })
-          );
-        } else {
-          metricsUpdates.push(
-            storage.createDocumentMetrics({
-              userId,
-              categoryName: category,
-              totalCount: categoryDocs.length,
-              activeCount: catActiveCount,
-              expiredCount: catExpiredCount,
-              expiringCount: catExpiringCount,
-              avgVersions: 1,
-              lastUpdated: new Date()
-            })
-          );
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Analyze this image in detail. Describe what you see and extract key information. Return your analysis in JSON format with keys: description, objects, text_content (if any), colors, overall_theme"
+            },
+            {
+              type: "image_url",
+              image_url: {
+                url: `data:image/jpeg;base64,${base64Image}`
+              }
+            }
+          ]
         }
-      }
-    }
+      ],
+      response_format: { type: "json_object" }
+    });
     
-    // Wait for all metrics updates to complete
-    await Promise.all(metricsUpdates);
-    
-    return {
-      totalCount: documents.length,
-      activeCount,
-      expiredCount,
-      expiringCount
-    };
+    return JSON.parse(response.choices[0].message.content);
   } catch (error) {
-    console.error('Error scanning document expiration:', error);
+    console.error('Error analyzing image with OpenAI:', error);
     throw error;
   }
-};
+}
 
 /**
- * Search for similar documents using vector similarity
- * @param documentId Source document ID
- * @param threshold Similarity threshold (0-1)
- * @param limit Maximum results to return
- * @returns Array of similar documents
+ * Transcribe audio with OpenAI Whisper
  */
-export const findSimilarDocuments = async (
-  documentId: number,
-  threshold: number = 0.7,
-  limit: number = 10
-) => {
+async function transcribeAudioWithAI(audioFilePath: string): Promise<any> {
+  if (!openai) {
+    throw new Error('OpenAI API key not configured');
+  }
+  
   try {
-    // Get source document
-    const document = await storage.getDocument(documentId);
-    if (!document || !document.contentVector) {
-      throw new Error(`Document with ID ${documentId} not found or has no vector`);
-    }
+    const audioReadStream = fs.createReadStream(audioFilePath);
     
-    // Get user documents with vectors
-    const userId = document.userId;
-    const allDocs = await storage.getDocuments(userId);
-    const docsWithVectors = allDocs.filter(
-      doc => doc.id !== documentId && doc.contentVector
+    const transcription = await openai.audio.transcriptions.create({
+      file: audioReadStream,
+      model: "whisper-1",
+    });
+    
+    return transcription;
+  } catch (error) {
+    console.error('Error transcribing audio with OpenAI:', error);
+    throw error;
+  }
+}
+
+/**
+ * Analyze image with Hugging Face
+ */
+async function analyzeImageWithHuggingFace(imagePath: string): Promise<any> {
+  if (!hfToken) {
+    throw new Error('Hugging Face API token not configured');
+  }
+  
+  try {
+    const imageBuffer = fs.readFileSync(imagePath);
+    
+    // Use an image captioning model
+    const response = await fetch(
+      'https://api-inference.huggingface.co/models/Salesforce/blip-image-captioning-large',
+      {
+        headers: { Authorization: `Bearer ${hfToken}` },
+        method: 'POST',
+        body: imageBuffer
+      }
     );
     
-    // Calculate similarity scores
-    const scoredDocs = docsWithVectors.map(doc => {
-      const similarity = cosineSimilarity(
-        document.contentVector as number[],
-        doc.contentVector as number[]
-      );
-      return { document: doc, similarity };
-    });
-    
-    // Filter by threshold and sort by similarity (highest first)
-    return scoredDocs
-      .filter(item => item.similarity >= threshold)
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, limit)
-      .map(item => ({
-        ...item.document,
-        similarityScore: item.similarity
-      }));
+    const result = await response.json();
+    return result;
   } catch (error) {
-    console.error(`Error finding similar documents for ${documentId}:`, error);
+    console.error('Error analyzing image with Hugging Face:', error);
     throw error;
   }
-};
+}

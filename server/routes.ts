@@ -1,12 +1,14 @@
 import express, { type Express } from 'express';
-import session from 'express-session';
 import path from 'path';
+import session from 'express-session';
 import { createServer, type Server } from 'http';
 import { WebSocketServer } from 'ws';
 import { storage } from './storage';
+import { setupAuth, isAuthenticated } from './replitAuth';
 import communicationRoutes from './api/communication-routes';
 import realEstateRoutes from './api/real-estate-routes';
 import insuranceRoutes from './api/insurance-routes';
+import syncRoutes from './api/sync-routes';
 
 // Set up WebSocket connections (for real-time communication)
 const setupWebSockets = (server: Server) => {
@@ -49,19 +51,8 @@ const setupWebSockets = (server: Server) => {
 };
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Session middleware
-  const sessionMiddleware = session({
-    secret: process.env.SESSION_SECRET || 'pinky-ai-os-secret',
-    resave: false,
-    saveUninitialized: false,
-    store: storage.sessionStore,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      maxAge: 1000 * 60 * 60 * 24 // 1 day
-    }
-  });
-  
-  app.use(sessionMiddleware);
+  // Set up Replit authentication
+  await setupAuth(app);
   
   // Body parser middleware
   app.use(express.json());
@@ -74,6 +65,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/communications', communicationRoutes);
   app.use('/api/real-estate', realEstateRoutes);
   app.use('/api/insurance', insuranceRoutes);
+  app.use('/api/sync', syncRoutes);
   
   // API health check
   app.get('/api/health', (_req, res) => {
@@ -90,6 +82,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     };
     
     res.json(secretsStatus);
+  });
+  
+  // Auth user endpoint
+  app.get('/api/auth/user', (req: any, res) => {
+    res.json(req.session?.passport?.user || null);
   });
   
   // Create HTTP server

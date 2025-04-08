@@ -2,6 +2,8 @@
 import { drizzle } from 'drizzle-orm/neon-serverless';
 import session from 'express-session';
 import MemoryStore from 'memorystore';
+import crypto from 'crypto';
+import { v4 as uuidv4 } from 'uuid';
 import { CommunicationEntity } from './utils/communicationLogger';
 import { PlatformSyncStorage } from './storage/platformSyncStorage';
 import { 
@@ -58,6 +60,9 @@ export interface IStorage {
 export class MemStorage implements IStorage {
   private communications: Map<string, CommunicationEntity> = new Map();
   private tags: Map<string, Set<string>> = new Map(); // tag -> set of communication IDs
+  private platformConnections: Map<string, PlatformConnection> = new Map();
+  private syncOperations: Map<string, SyncOperation> = new Map();
+  private syncItems: Map<string, SyncItem> = new Map();
   public sessionStore: session.Store;
   
   constructor() {
@@ -66,6 +71,7 @@ export class MemStorage implements IStorage {
     });
   }
   
+  // Communication methods
   async createCommunication(communication: Omit<CommunicationEntity, 'id'>): Promise<CommunicationEntity> {
     // Generate a UUID (assuming it's a string)
     const id = `comm_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -134,6 +140,199 @@ export class MemStorage implements IStorage {
       tag,
       count: communications.size
     }));
+  }
+  
+  // Platform Synchronization Methods
+  
+  // Platform Connection methods
+  async getAllPlatformConnections(): Promise<PlatformConnection[]> {
+    return Array.from(this.platformConnections.values());
+  }
+  
+  async getPlatformConnection(id: string): Promise<PlatformConnection | undefined> {
+    return this.platformConnections.get(id);
+  }
+  
+  async createPlatformConnection(connection: InsertPlatformConnection): Promise<PlatformConnection> {
+    // Generate an ID for the connection if it doesn't have one
+    const id = connection.id || uuidv4();
+    
+    const newConnection: PlatformConnection = {
+      ...connection,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as PlatformConnection;
+    
+    this.platformConnections.set(id, newConnection);
+    return newConnection;
+  }
+  
+  async updatePlatformConnection(id: string, updates: Partial<InsertPlatformConnection>): Promise<PlatformConnection | null> {
+    const connection = this.platformConnections.get(id);
+    if (!connection) return null;
+    
+    const updatedConnection: PlatformConnection = {
+      ...connection,
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    this.platformConnections.set(id, updatedConnection);
+    return updatedConnection;
+  }
+  
+  async deletePlatformConnection(id: string): Promise<boolean> {
+    // Delete the connection
+    const deleted = this.platformConnections.delete(id);
+    
+    // Delete all associated sync operations and items
+    if (deleted) {
+      // Delete sync operations
+      for (const [opId, operation] of this.syncOperations.entries()) {
+        if (operation.connectionId === id) {
+          this.syncOperations.delete(opId);
+        }
+      }
+      
+      // Delete sync items
+      for (const [itemId, item] of this.syncItems.entries()) {
+        if (item.connectionId === id) {
+          this.syncItems.delete(itemId);
+        }
+      }
+    }
+    
+    return deleted;
+  }
+  
+  // Sync Operations methods
+  async getSyncOperations(connectionId: string): Promise<SyncOperation[]> {
+    const operations: SyncOperation[] = [];
+    
+    for (const operation of this.syncOperations.values()) {
+      if (operation.connectionId === connectionId) {
+        operations.push(operation);
+      }
+    }
+    
+    // Sort by start time, most recent first
+    return operations.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
+  }
+  
+  async getSyncOperation(id: string): Promise<SyncOperation | undefined> {
+    return this.syncOperations.get(id);
+  }
+  
+  async createSyncOperation(operation: InsertSyncOperation): Promise<SyncOperation> {
+    // Generate an ID for the operation if it doesn't have one
+    const id = operation.id || uuidv4();
+    
+    const newOperation: SyncOperation = {
+      ...operation,
+      id,
+      startTime: operation.startTime || new Date()
+    } as SyncOperation;
+    
+    this.syncOperations.set(id, newOperation);
+    return newOperation;
+  }
+  
+  async updateSyncOperation(id: string, updates: Partial<InsertSyncOperation>): Promise<SyncOperation | null> {
+    const operation = this.syncOperations.get(id);
+    if (!operation) return null;
+    
+    const updatedOperation: SyncOperation = {
+      ...operation,
+      ...updates
+    };
+    
+    this.syncOperations.set(id, updatedOperation);
+    return updatedOperation;
+  }
+  
+  // Sync Items methods
+  async getSyncItems(connectionId: string): Promise<SyncItem[]> {
+    const items: SyncItem[] = [];
+    
+    for (const item of this.syncItems.values()) {
+      if (item.connectionId === connectionId) {
+        items.push(item);
+      }
+    }
+    
+    return items;
+  }
+  
+  async getSyncItem(id: string): Promise<SyncItem | undefined> {
+    return this.syncItems.get(id);
+  }
+  
+  async getSyncItemByPath(connectionId: string, path: string): Promise<SyncItem | undefined> {
+    for (const item of this.syncItems.values()) {
+      if (item.connectionId === connectionId && item.path === path) {
+        return item;
+      }
+    }
+    
+    return undefined;
+  }
+  
+  async createSyncItem(item: InsertSyncItem): Promise<SyncItem> {
+    // Generate an ID for the item if it doesn't have one
+    const id = item.id || uuidv4();
+    
+    const newItem: SyncItem = {
+      ...item,
+      id,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    } as SyncItem;
+    
+    this.syncItems.set(id, newItem);
+    return newItem;
+  }
+  
+  async updateSyncItem(id: string, updates: Partial<InsertSyncItem>): Promise<SyncItem | null> {
+    const item = this.syncItems.get(id);
+    if (!item) return null;
+    
+    const updatedItem: SyncItem = {
+      ...item,
+      ...updates,
+      updatedAt: new Date()
+    };
+    
+    this.syncItems.set(id, updatedItem);
+    return updatedItem;
+  }
+  
+  async deleteSyncItem(id: string): Promise<boolean> {
+    return this.syncItems.delete(id);
+  }
+  
+  async batchCreateSyncItems(items: InsertSyncItem[]): Promise<SyncItem[]> {
+    const createdItems: SyncItem[] = [];
+    
+    for (const item of items) {
+      const createdItem = await this.createSyncItem(item);
+      createdItems.push(createdItem);
+    }
+    
+    return createdItems;
+  }
+  
+  async batchUpdateSyncItems(updates: Array<{ id: string; updates: Partial<InsertSyncItem> }>): Promise<number> {
+    let updateCount = 0;
+    
+    for (const { id, updates: itemUpdates } of updates) {
+      const result = await this.updateSyncItem(id, itemUpdates);
+      if (result) {
+        updateCount++;
+      }
+    }
+    
+    return updateCount;
   }
 }
 
