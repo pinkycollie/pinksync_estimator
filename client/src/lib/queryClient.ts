@@ -1,5 +1,24 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
+// Custom domain configuration
+const CUSTOM_DOMAIN = 'pinkyaihub.mbtquniverse.com';
+
+// Check if we're on the custom domain
+const isCustomDomain = () => {
+  return window.location.hostname === CUSTOM_DOMAIN;
+};
+
+// Get the fully qualified base URL
+export const getBaseUrl = (): string => {
+  if (isCustomDomain()) {
+    return `https://${CUSTOM_DOMAIN}`;
+  }
+  
+  // Use the current origin as fallback
+  return window.location.origin;
+};
+
+// Utility to handle API requests with custom domain support
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
@@ -7,11 +26,15 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Enhanced API request function with custom domain support
 export async function apiRequest<T = any>(
   url: string,
   options?: RequestInit,
 ): Promise<T> {
-  const res = await fetch(url, {
+  // Handle absolute URLs vs relative paths
+  const fullUrl = url.startsWith('http') ? url : `${getBaseUrl()}${url}`;
+  
+  const res = await fetch(fullUrl, {
     credentials: "include",
     ...options,
   });
@@ -26,7 +49,11 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey[0] as string, {
+    // Handle URL construction for the custom domain
+    const path = queryKey[0] as string;
+    const fullUrl = path.startsWith('http') ? path : `${getBaseUrl()}${path}`;
+    
+    const res = await fetch(fullUrl, {
       credentials: "include",
     });
 

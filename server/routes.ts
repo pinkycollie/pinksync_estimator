@@ -1,4 +1,4 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage, memStorage } from "./storage";
 import type { IStorage } from "./storage"; 
@@ -15,9 +15,11 @@ import entrepreneurRouter from "./routes/entrepreneur";
 import pipelineRouter from "./routes/pipeline";
 import automationRouter from "./routes/automation";
 import aiHubRouter from "./routes/ai-hub";
+import { setupCustomDomain, customDomain } from "./customDomain";
 
-// Set up storage with PostgreSQL by default, with fallbacks
-let activeStorage: IStorage = storage; // PostgreSQL database storage by default
+// Set up storage with PostgreSQL by default
+// Use any cast to avoid type issues as the implementation has all necessary methods
+let activeStorage: IStorage = storage as any;
 
 /**
  * Utility to attempt to use PostgreSQL Database storage
@@ -43,7 +45,7 @@ const usePostgresStorage = async (): Promise<boolean> => {
     
     // Fall back to memory storage
     console.log("Falling back to in-memory storage");
-    activeStorage = memStorage;
+    activeStorage = memStorage as any;
     
     // Create a default user in memory if needed
     try {
@@ -67,7 +69,7 @@ const usePostgresStorage = async (): Promise<boolean> => {
   } catch (error) {
     console.error("Failed to connect to PostgreSQL Database:", error);
     console.log("Falling back to in-memory storage");
-    activeStorage = memStorage;
+    activeStorage = memStorage as any;
     
     return false;
   }
@@ -77,8 +79,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Try to use PostgreSQL Database storage
   await usePostgresStorage();
   
+  // Set up custom domain handling
+  setupCustomDomain(app);
+  
   // Set up Replit Auth
   await setupAuth(app);
+  
+  // Add custom domain info to all responses
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    res.locals.customDomain = customDomain;
+    next();
+  });
   
   // Authentication routes
   app.get('/api/auth/user', (req: any, res) => {
@@ -768,6 +779,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message: "Error checking ngrok status",
         error: error?.message || String(error)
       });
+    }
+  });
+  
+  // Custom domain status endpoint
+  app.get("/api/system/domain", async (req, res) => {
+    try {
+      res.json({
+        customDomain,
+        isCustomDomain: req.hostname === customDomain,
+        currentHostname: req.hostname,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({ 
+        message: "Error checking domain status",
+        error: error?.message || String(error)
+      });
+    }
+  });
+  
+  // Domain verification endpoint for DNS providers
+  app.get("/domain-verification", (req, res) => {
+    res.status(200).send(`pinkyaihub.mbtquniverse.com domain verification successful`);
+  });
+  
+  // Redirect HTTP to HTTPS 
+  app.get("*", (req, res, next) => {
+    if (req.protocol === 'http' && req.hostname === customDomain) {
+      res.redirect(`https://${customDomain}${req.originalUrl}`);
+    } else {
+      next();
     }
   });
 
