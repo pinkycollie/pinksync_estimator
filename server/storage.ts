@@ -19,7 +19,9 @@ import {
   Pipeline, InsertPipeline,
   PipelineExecution, InsertPipelineExecution,
   AiHubProject, InsertAiHubProject,
+  Project, InsertProject,
   ProjectDeployment, InsertProjectDeployment,
+  DeploymentHistory, InsertDeploymentHistory,
   // Enums
   AiPlatform, FileCategory, FileSource, 
   IntegrationType, RecommendationType,
@@ -58,7 +60,9 @@ export type {
   Pipeline, InsertPipeline,
   PipelineExecution, InsertPipelineExecution,
   AiHubProject, InsertAiHubProject,
+  Project, InsertProject,
   ProjectDeployment, InsertProjectDeployment,
+  DeploymentHistory, InsertDeploymentHistory,
   // Enums
   PipelineStatus, PipelineCategory,
   ProjectType, ProjectTemplate,
@@ -129,6 +133,26 @@ export interface IStorage {
   getProjectDeployment(id: number): Promise<ProjectDeployment | undefined>;
   createProjectDeployment(deployment: InsertProjectDeployment): Promise<ProjectDeployment>;
   updateProjectDeployment(id: number, deployment: Partial<InsertProjectDeployment>): Promise<ProjectDeployment | undefined>;
+  
+  // Deployment History methods
+  getDeploymentHistories(projectId: number): Promise<DeploymentHistory[]>;
+  getDeploymentHistory(id: number): Promise<DeploymentHistory | undefined>;
+  createDeploymentHistory(history: InsertDeploymentHistory): Promise<DeploymentHistory>;
+  updateDeploymentHistory(id: number, history: Partial<InsertDeploymentHistory>): Promise<DeploymentHistory | undefined>;
+  deleteDeploymentHistory(id: number): Promise<boolean>;
+  
+  // Project deployment utility methods
+  deployProject(projectId: number, userId: number, environment: string, metadata?: any): Promise<DeploymentHistory>;
+  updateDeploymentStatus(deploymentId: number, status: string, logs?: any, visualFeedback?: any): Promise<DeploymentHistory | undefined>;
+  
+  // New Project methods
+  getAllProjects(userId: number): Promise<Project[]>;
+  getProjectsByType(userId: number, projectType: string): Promise<Project[]>;
+  getProjectById(id: number): Promise<Project | undefined>;
+  createNewProject(project: InsertProject): Promise<Project>;
+  updateNewProject(id: number, project: Partial<InsertProject>): Promise<Project | undefined>;
+  deleteNewProject(id: number): Promise<boolean>;
+  getProjectFiles(projectId: number): Promise<File[]>;
   
   // AI Hub File System Operations
   scanFileSystem(path: string, recursive?: boolean): Promise<{ files: any[]; issues: any[] }>;
@@ -300,6 +324,8 @@ export class MemStorage implements IStorage {
   private pipelineExecutions: Map<number, PipelineExecution>;
   private aiHubProjects: Map<number, AiHubProject>;
   private projectDeployments: Map<number, ProjectDeployment>;
+  private deploymentHistories: Map<number, DeploymentHistory>;
+  private projects: Map<number, Project>;
   // Counter variables
   private userIdCounter: number;
   private fileIdCounter: number;
@@ -352,6 +378,8 @@ export class MemStorage implements IStorage {
     this.pipelineExecutions = new Map();
     this.aiHubProjects = new Map();
     this.projectDeployments = new Map();
+    this.deploymentHistories = new Map();
+    this.projects = new Map();
     
     // Initialize ID counters
     this.userIdCounter = 1;
@@ -374,12 +402,7 @@ export class MemStorage implements IStorage {
     this.pipelineExecutionIdCounter = 1;
     this.aiHubProjectIdCounter = 1;
     this.projectDeploymentIdCounter = 1;
-    
-    // Initialize AI Hub counters
-    this.pipelineIdCounter = 1;
-    this.pipelineExecutionIdCounter = 1;
-    this.aiHubProjectIdCounter = 1;
-    this.projectDeploymentIdCounter = 1;
+    this.deploymentHistoryIdCounter = 1;
     
     // Add sample file watch configurations
     this.createFileWatchConfig({
@@ -2668,6 +2691,64 @@ export class MemStorage implements IStorage {
     });
     
     return project;
+  }
+  // Project deployment utility methods implementation
+  async deployProject(projectId: number, userId: number, environment: string, metadata: any = null): Promise<DeploymentHistory> {
+    const project = await this.getProjectById(projectId);
+    
+    if (!project) {
+      throw new Error(`Project with ID ${projectId} not found`);
+    }
+    
+    // Create a deployment history entry
+    const deploymentHistory = await this.createDeploymentHistory({
+      projectId,
+      environment,
+      status: 'in_progress',
+      userId,
+      metadata,
+      logs: { startTime: new Date().toISOString(), entries: [] },
+      visualFeedback: { 
+        stage: 'initialization',
+        percentComplete: 0,
+        statusIndicator: '🔄' 
+      },
+      accessibilityFeatures: { 
+        visualIndicators: true,
+        highContrast: true,
+        textualStatuses: true
+      }
+    });
+    
+    return deploymentHistory;
+  }
+
+  async updateDeploymentStatus(deploymentId: number, status: string, logs: any = null, visualFeedback: any = null): Promise<DeploymentHistory | undefined> {
+    // Find the deployment in our collection
+    const deploymentHistory = await this.getDeploymentHistory(deploymentId);
+    
+    if (!deploymentHistory) {
+      return undefined;
+    }
+    
+    const updatedLogs = {
+      ...(deploymentHistory.logs || {}),
+      ...(logs || {}),
+      lastUpdated: new Date().toISOString()
+    };
+    
+    const updatedVisualFeedback = {
+      ...(deploymentHistory.visualFeedback || {}),
+      ...(visualFeedback || {}),
+      statusIndicator: status === 'success' ? '✅' : status === 'failure' ? '❌' : '🔄'
+    };
+    
+    // Update the deployment history
+    return this.updateDeploymentHistory(deploymentId, {
+      status,
+      logs: updatedLogs,
+      visualFeedback: updatedVisualFeedback
+    });
   }
 }
 

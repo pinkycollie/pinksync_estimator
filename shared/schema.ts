@@ -335,6 +335,29 @@ export type InsertProjectPlan = z.infer<typeof insertProjectPlanSchema>;
 export type ProjectMilestone = typeof projectMilestones.$inferSelect;
 export type InsertProjectMilestone = z.infer<typeof insertProjectMilestoneSchema>;
 
+// Projects
+export const projects = pgTable('projects', {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  status: text("status").notNull().default('planning'), // planning, in_progress, completed, cancelled
+  visibility: text("visibility").notNull().default('private'), // private, team, public
+  tags: text("tags"), // Comma-separated tags
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  metadata: jsonb("metadata"), // Project metadata including platform integrations
+  gitRepository: text("git_repository"), // Git repository URL if applicable
+  deploymentId: integer("deployment_id"), // Latest deployment ID
+});
+
+export const insertProjectSchema = createInsertSchema(projects).omit({
+  id: true,
+});
+
+export type Project = typeof projects.$inferSelect;
+export type InsertProject = z.infer<typeof insertProjectSchema>;
+
 export type CodeSource = typeof codeSources.$inferSelect;
 export type InsertCodeSource = z.infer<typeof insertCodeSourceSchema>;
 
@@ -447,6 +470,27 @@ export type InsertAiHubProject = z.infer<typeof insertAiHubProjectSchema>;
 
 export type ProjectDeployment = typeof projectDeployments.$inferSelect;
 export type InsertProjectDeployment = z.infer<typeof insertProjectDeploymentSchema>;
+
+// Deployment History for tracking all deployments across multiple platforms
+export const deploymentHistories = pgTable('deployment_histories', {
+  id: serial("id").primaryKey(),
+  projectId: integer("project_id").notNull(),
+  environment: text("environment").notNull(), // development, staging, production
+  status: text("status").notNull(), // success, failure, in_progress
+  deployedAt: timestamp("deployed_at").notNull().defaultNow(),
+  userId: integer("user_id").notNull(), // Who triggered the deployment
+  metadata: jsonb("metadata"), // Additional metadata including platform-specific details
+  logs: jsonb("logs"), // Deployment logs
+  visualFeedback: jsonb("visual_feedback"), // Visual feedback for accessibility
+  accessibilityFeatures: jsonb("accessibility_features"), // Accessibility features enabled for this deployment
+});
+
+export const insertDeploymentHistorySchema = createInsertSchema(deploymentHistories).omit({
+  id: true,
+});
+
+export type DeploymentHistory = typeof deploymentHistories.$inferSelect;
+export type InsertDeploymentHistory = z.infer<typeof insertDeploymentHistorySchema>;
 
 // File category enum for reference
 export enum FileCategory {
