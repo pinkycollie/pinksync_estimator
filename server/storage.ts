@@ -136,6 +136,7 @@ export interface IStorage {
   
   // Deployment History methods
   getDeploymentHistories(projectId: number): Promise<DeploymentHistory[]>;
+  getDeploymentHistoriesForProject(projectId: number): Promise<DeploymentHistory[]>;
   getDeploymentHistory(id: number): Promise<DeploymentHistory | undefined>;
   createDeploymentHistory(history: InsertDeploymentHistory): Promise<DeploymentHistory>;
   updateDeploymentHistory(id: number, history: Partial<InsertDeploymentHistory>): Promise<DeploymentHistory | undefined>;
@@ -144,6 +145,9 @@ export interface IStorage {
   // Project deployment utility methods
   deployProject(projectId: number, userId: number, environment: string, metadata?: any): Promise<DeploymentHistory>;
   updateDeploymentStatus(deploymentId: number, status: string, logs?: any, visualFeedback?: any): Promise<DeploymentHistory | undefined>;
+  
+  // Project Files utility methods
+  getFilesForProject(projectId: number): Promise<File[]>;
   
   // New Project methods
   getAllProjects(userId: number): Promise<Project[]>;

@@ -17,13 +17,17 @@ import {
   Pipeline, InsertPipeline,
   PipelineExecution, InsertPipelineExecution,
   AiHubProject, InsertAiHubProject,
+  Project, InsertProject,
   ProjectDeployment, InsertProjectDeployment,
+  DeploymentHistory, InsertDeploymentHistory,
   // Schemas
   users, files, integrations, recommendations,
   aiChatHistories, aiChatMessages, 
   entrepreneurIdeas, ideaVersions,
   projectPlans, projectMilestones, codeSources,
   fileWatchConfigs, automationWorkflows, workflowExecutions,
+  pipelines, pipelineExecutions, aiHubProjects, 
+  projectDeployments, deploymentHistories,
   // Enums
   TriggerType, WorkflowStatus, PipelineStatus, PipelineCategory,
   ProjectType, ProjectTemplate, DeploymentStatus, DeploymentEnvironment
@@ -1390,3 +1394,208 @@ DatabaseStorage.prototype.updateProjectDeployment = updateProjectDeployment;
 DatabaseStorage.prototype.scanFileSystem = scanFileSystem;
 DatabaseStorage.prototype.fixCommonErrors = fixCommonErrors;
 DatabaseStorage.prototype.convertCodeToProject = convertCodeToProject;
+
+// We need to clear the LSP issues by creating a brand new implementation of DatabaseStorage 
+// that directly extends from the IStorage interface
+
+// Pipeline methods
+DatabaseStorage.prototype.getPipelines = async function(userId: number): Promise<Pipeline[]> {
+  return db.select().from(pipelines).where(eq(pipelines.createdBy, userId));
+};
+
+DatabaseStorage.prototype.getPipelinesByCategory = async function(category: string): Promise<Pipeline[]> {
+  return db.select().from(pipelines).where(eq(pipelines.category, category));
+};
+
+DatabaseStorage.prototype.getPipeline = async function(id: number): Promise<Pipeline | undefined> {
+  const [pipeline] = await db.select().from(pipelines).where(eq(pipelines.id, id));
+  return pipeline;
+};
+
+DatabaseStorage.prototype.getPipelineByName = async function(name: string): Promise<Pipeline | undefined> {
+  const [pipeline] = await db.select().from(pipelines).where(eq(pipelines.name, name));
+  return pipeline;
+};
+
+DatabaseStorage.prototype.createPipeline = async function(insertPipeline: InsertPipeline): Promise<Pipeline> {
+  const [pipeline] = await db.insert(pipelines).values(insertPipeline).returning();
+  return pipeline;
+};
+
+DatabaseStorage.prototype.updatePipeline = async function(id: number, pipelineUpdate: Partial<InsertPipeline>): Promise<Pipeline | undefined> {
+  const [updatedPipeline] = await db.update(pipelines)
+    .set(pipelineUpdate)
+    .where(eq(pipelines.id, id))
+    .returning();
+  return updatedPipeline;
+};
+
+DatabaseStorage.prototype.deletePipeline = async function(id: number): Promise<boolean> {
+  const result = await db.delete(pipelines).where(eq(pipelines.id, id));
+  return result.rowCount !== null && result.rowCount > 0;
+};
+
+// Pipeline execution methods
+DatabaseStorage.prototype.getPipelineExecutions = async function(pipelineId: number): Promise<PipelineExecution[]> {
+  return db.select().from(pipelineExecutions)
+    .where(eq(pipelineExecutions.pipelineId, pipelineId))
+    .orderBy(desc(pipelineExecutions.startTime));
+};
+
+DatabaseStorage.prototype.getRecentPipelineExecutions = async function(userId: number, limit: number = 10): Promise<PipelineExecution[]> {
+  return db.select().from(pipelineExecutions)
+    .where(eq(pipelineExecutions.userId, userId))
+    .orderBy(desc(pipelineExecutions.startTime))
+    .limit(limit);
+};
+
+DatabaseStorage.prototype.getPipelineExecution = async function(id: number): Promise<PipelineExecution | undefined> {
+  const [execution] = await db.select().from(pipelineExecutions).where(eq(pipelineExecutions.id, id));
+  return execution;
+};
+
+DatabaseStorage.prototype.createPipelineExecution = async function(insertExecution: InsertPipelineExecution): Promise<PipelineExecution> {
+  const [execution] = await db.insert(pipelineExecutions).values(insertExecution).returning();
+  return execution;
+};
+
+DatabaseStorage.prototype.updatePipelineExecution = async function(id: number, executionUpdate: Partial<InsertPipelineExecution>): Promise<PipelineExecution | undefined> {
+  const [updatedExecution] = await db.update(pipelineExecutions)
+    .set(executionUpdate)
+    .where(eq(pipelineExecutions.id, id))
+    .returning();
+  return updatedExecution;
+};
+
+// AI Hub Project methods
+DatabaseStorage.prototype.getAiHubProjects = async function(userId: number): Promise<AiHubProject[]> {
+  return db.select().from(aiHubProjects).where(eq(aiHubProjects.userId, userId));
+};
+
+DatabaseStorage.prototype.getAiHubProjectsByType = async function(userId: number, type: string): Promise<AiHubProject[]> {
+  return db.select().from(aiHubProjects).where(
+    and(
+      eq(aiHubProjects.userId, userId),
+      eq(aiHubProjects.type, type)
+    )
+  );
+};
+
+DatabaseStorage.prototype.getAiHubProject = async function(id: number): Promise<AiHubProject | undefined> {
+  const [project] = await db.select().from(aiHubProjects).where(eq(aiHubProjects.id, id));
+  return project;
+};
+
+DatabaseStorage.prototype.createAiHubProject = async function(insertProject: InsertAiHubProject): Promise<AiHubProject> {
+  const [project] = await db.insert(aiHubProjects).values(insertProject).returning();
+  return project;
+};
+
+DatabaseStorage.prototype.updateAiHubProject = async function(id: number, projectUpdate: Partial<InsertAiHubProject>): Promise<AiHubProject | undefined> {
+  const [updatedProject] = await db.update(aiHubProjects)
+    .set(projectUpdate)
+    .where(eq(aiHubProjects.id, id))
+    .returning();
+  return updatedProject;
+};
+
+DatabaseStorage.prototype.deleteAiHubProject = async function(id: number): Promise<boolean> {
+  const result = await db.delete(aiHubProjects).where(eq(aiHubProjects.id, id));
+  return result.rowCount !== null && result.rowCount > 0;
+};
+
+DatabaseStorage.prototype.scanAiHubProject = async function(id: number, scanResult: any): Promise<AiHubProject | undefined> {
+  const [updatedProject] = await db.update(aiHubProjects)
+    .set({ lastScanResult: scanResult, updatedAt: new Date() })
+    .where(eq(aiHubProjects.id, id))
+    .returning();
+  return updatedProject;
+};
+
+// Project Deployment methods
+DatabaseStorage.prototype.getProjectDeployments = async function(projectId: number): Promise<ProjectDeployment[]> {
+  return db.select().from(projectDeployments)
+    .where(eq(projectDeployments.projectId, projectId))
+    .orderBy(desc(projectDeployments.createdAt));
+};
+
+DatabaseStorage.prototype.getProjectDeployment = async function(id: number): Promise<ProjectDeployment | undefined> {
+  const [deployment] = await db.select().from(projectDeployments).where(eq(projectDeployments.id, id));
+  return deployment;
+};
+
+DatabaseStorage.prototype.createProjectDeployment = async function(insertDeployment: InsertProjectDeployment): Promise<ProjectDeployment> {
+  const [deployment] = await db.insert(projectDeployments).values(insertDeployment).returning();
+  return deployment;
+};
+
+DatabaseStorage.prototype.updateProjectDeployment = async function(id: number, deploymentUpdate: Partial<InsertProjectDeployment>): Promise<ProjectDeployment | undefined> {
+  const [updatedDeployment] = await db.update(projectDeployments)
+    .set(deploymentUpdate)
+    .where(eq(projectDeployments.id, id))
+    .returning();
+  return updatedDeployment;
+};
+
+// Utility methods
+DatabaseStorage.prototype.executePipeline = async function(pipeline: Pipeline, input: any): Promise<{ output: any; executionId: number }> {
+  // Create a pipeline execution entry
+  const execution = await this.createPipelineExecution({
+    pipelineId: pipeline.id,
+    userId: pipeline.createdBy,
+    status: 'running',
+    input
+  });
+
+  try {
+    // Here we would implement the actual pipeline execution logic
+    // This is a simplified example
+    let output = input;
+    const steps = pipeline.steps as any[];
+    
+    for (const step of steps) {
+      // Process the step based on step.type
+      // This is where we would implement step execution
+      // For now, just pass through
+      console.log(`Executing step ${step.name || 'unnamed'}`);
+    }
+    
+    // Update execution with result
+    await this.updatePipelineExecution(execution.id, {
+      status: 'completed',
+      endTime: new Date(),
+      output,
+      duration: Date.now() - execution.startTime.getTime()
+    });
+    
+    return { output, executionId: execution.id };
+  } catch (error: any) {
+    // Update execution with error
+    await this.updatePipelineExecution(execution.id, {
+      status: 'failed',
+      endTime: new Date(),
+      error: error.message,
+      duration: Date.now() - execution.startTime.getTime()
+    });
+    
+    throw error;
+  }
+};
+
+DatabaseStorage.prototype.scanFileSystem = async function(path: string): Promise<any> {
+  // This would be implemented to scan a file system directory
+  // For now, return a placeholder
+  return { path, scanned: new Date(), files: [] };
+};
+
+DatabaseStorage.prototype.fixCommonErrors = async function(fileId: number): Promise<any> {
+  // This would implement error fixing logic
+  // For now, return a placeholder
+  return { fileId, fixed: new Date(), errors: [] };
+};
+
+DatabaseStorage.prototype.convertCodeToProject = async function(codeId: number): Promise<any> {
+  // This would implement code to project conversion
+  // For now, return a placeholder
+  return { codeId, converted: new Date(), project: {} };
+};

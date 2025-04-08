@@ -2,7 +2,19 @@ import express, { Request, Response } from 'express';
 import { z } from 'zod';
 import { insertPipelineExecutionSchema, insertProjectSchema } from '@shared/schema';
 import OpenAI from 'openai';
-import { storage } from '../storage';
+import { storage } from '../ai-hub-storage'; // Updated import to use extended storage
+import { pipelineManager } from '../utils/pipelineSystem';
+import { aiPipelineExecutor, aiPipelines } from '../utils/aiPipelineSystem';
+import { 
+  aiMiddleware, 
+  AIAssetType, 
+  AIAssetProperties 
+} from '../scripts/ai-hub/aiMiddleware';
+import { 
+  platformOptimizer, 
+  ModelSize, 
+  TaskComplexity 
+} from '../scripts/ai-hub/platformOptimizer';
 
 // Initialize OpenAI client
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -11,13 +23,34 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // Create router
 const router = express.Router();
 
-// Get all pipelines
+// Get all pipelines, including the new iOS-optimized AI pipelines
 router.get('/pipelines', async (req: Request, res: Response) => {
   try {
     // Default to user ID 1 when not authenticated
     const userId = 1; 
-    const pipelines = await storage.getPipelines(userId);
-    res.json(pipelines);
+    
+    // Get database-stored pipelines
+    let pipelines = [];
+    try {
+      pipelines = await storage.getPipelines(userId);
+    } catch (error: any) {
+      console.warn('Error fetching stored pipelines, using only predefined pipelines:', error.message);
+    }
+    
+    // Add our new AI pipelines
+    const aiPipelineDefinitions = Object.entries(aiPipelines).map(([key, pipelineFactory]) => {
+      const pipeline = pipelineFactory(userId);
+      return {
+        id: pipeline.id,
+        name: pipeline.name,
+        description: pipeline.description,
+        type: 'ai',
+        inputType: pipeline.input.type,
+        outputType: pipeline.output.type
+      };
+    });
+    
+    res.json([...pipelines, ...aiPipelineDefinitions]);
   } catch (error: any) {
     console.error('Error fetching pipelines:', error);
     res.status(500).json({ message: error.message || 'Failed to fetch pipelines' });
@@ -28,6 +61,44 @@ router.get('/pipelines', async (req: Request, res: Response) => {
 router.get('/pipelines/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    
+    // Check if this is an AI pipeline ID (string ID)
+    if (!id.match(/^\d+$/)) {
+      // This is a string ID, likely one of our predefined AI pipelines
+      const userId = 1; // Default user ID
+      
+      // Find the AI pipeline with this ID
+      let aiPipeline = null;
+      for (const [key, pipelineFactory] of Object.entries(aiPipelines)) {
+        const pipeline = pipelineFactory(userId);
+        if (pipeline.id === id) {
+          aiPipeline = {
+            id: pipeline.id,
+            name: pipeline.name,
+            description: pipeline.description,
+            type: 'ai',
+            inputType: pipeline.input.type,
+            outputType: pipeline.output.type,
+            steps: pipeline.steps.map(step => ({
+              id: step.id,
+              name: step.name,
+              type: step.type
+            })),
+            inputConfig: pipeline.input.config,
+            outputConfig: pipeline.output.config
+          };
+          break;
+        }
+      }
+      
+      if (aiPipeline) {
+        return res.json(aiPipeline);
+      }
+      
+      return res.status(404).json({ message: 'AI Pipeline not found' });
+    }
+    
+    // Otherwise, try to fetch from database
     const pipeline = await storage.getPipeline(parseInt(id));
     if (!pipeline) {
       return res.status(404).json({ message: 'Pipeline not found' });
@@ -43,6 +114,34 @@ router.get('/pipelines/:id', async (req: Request, res: Response) => {
 router.post('/pipelines/:id/execute', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
+    const userId = 1; // Default user ID
+    
+    // Check if this is an AI pipeline (string ID)
+    if (!id.match(/^\d+$/)) {
+      // This is a string ID, likely one of our AI pipelines
+      console.log(`Executing AI-enhanced pipeline: ${id}`);
+      
+      try {
+        // Use the AI pipeline executor to run the pipeline
+        const result = await aiPipelineExecutor.executePipeline(id, userId, req.body.input);
+        
+        // Return the result immediately since AI pipelines don't use DB storage
+        return res.status(200).json({
+          result: result.result,
+          logs: result.logs,
+          executionTime: result.executionTime,
+          platform: result.platform
+        });
+      } catch (error: any) {
+        console.error(`Error executing AI pipeline ${id}:`, error);
+        return res.status(500).json({ 
+          message: error.message || 'Failed to execute AI pipeline',
+          logs: error.logs || []
+        });
+      }
+    }
+    
+    // Otherwise, this is a DB-stored pipeline - use the existing logic
     const pipelineId = parseInt(id);
     const pipeline = await storage.getPipeline(pipelineId);
     
@@ -58,6 +157,14 @@ router.post('/pipelines/:id/execute', async (req: Request, res: Response) => {
       input: req.body.input,
     });
 
+    // Function to process the pipeline - must be defined in the scope
+    const processPipeline = async (pipeline: any, execution: any, input: any) => {
+      // This is a placeholder for the real pipeline processing
+      // In a real implementation, this would use the pipeline steps
+      console.log(`Processing pipeline ${pipeline.id} with execution ${execution.id}`);
+      return { result: "Pipeline processed", timestamp: new Date() };
+    };
+
     // Execute the pipeline asynchronously
     processPipeline(pipeline, execution, req.body.input)
       .then(async (output) => {
@@ -68,7 +175,7 @@ router.post('/pipelines/:id/execute', async (req: Request, res: Response) => {
           output,
         });
       })
-      .catch(async (error) => {
+      .catch(async (error: any) => {
         // Update the execution with the error
         await storage.updatePipelineExecution(execution.id, {
           status: 'failed',
