@@ -242,12 +242,8 @@ export class CommunicationLogger {
     
     // Store in database if available
     try {
-      // @ts-ignore - assuming this method exists in storage
       if (typeof storage.createCommunication === 'function') {
-        await storage.createCommunication({
-          userId: newCommunication.participants[0]?.id,
-          ...newCommunication
-        });
+        await storage.createCommunication(newCommunication);
       }
     } catch (error) {
       console.error('Error storing communication in database:', error);
