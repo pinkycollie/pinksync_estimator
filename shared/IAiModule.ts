@@ -1,17 +1,5 @@
-export type AiModuleResult = {
-  success: boolean;
-  data?: any;
-  error?: string;
-  metadata?: Record<string, any>;
-};
+# Navigate to the repository
+cd /github.com/pinkycollie/pinksync_estimator
 
-export interface IAiModule {
-  id: string;
-  name: string;
-  specialization: string; // e.g., 'code-assistant', 'real-estate', 'document-summarizer'
-  init?(opts?: { configPath?: string }): Promise<void>;
-  healthCheck?(): Promise<{ healthy: boolean; details?: any }>;
-  analyze?(input: { path?: string; text?: string; metadata?: Record<string, any> }, options?: any): Promise<AiModuleResult>;
-  handleRequest?(payload: any): Promise<AiModuleResult>;
-  shutdown?(): Promise<void>;
-}
+# Close the pull request
+gh pr close 12 --repo pinkycollie/pinksync_estimator --delete-branch
