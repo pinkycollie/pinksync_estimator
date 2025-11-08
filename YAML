@@ -1,0 +1,7 @@
+name: pinksync_env
+channels:
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - <other-dependencies>
