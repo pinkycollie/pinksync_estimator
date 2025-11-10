@@ -464,7 +464,7 @@ export class TextMessageImporter {
         imported
       };
     } catch (error) {
-      console.error(`Error synchronizing with provider ${providerId}:`, error);
+      console.error('Error synchronizing with provider %s:', providerId, error);
       
       // Update provider status
       provider.status = 'error';
