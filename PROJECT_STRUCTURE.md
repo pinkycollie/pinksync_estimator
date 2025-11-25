@@ -1,4 +1,4 @@
-# Pinky's AI OS - Project Structure
+# PinkSync Estimator - Project Structure
 
 ## Overview
 The project follows a modern full-stack architecture with a clear separation between client and server code. The codebase is organized to support a scalable, extensible system capable of handling multi-platform synchronization, document management, and intelligent task automation.
