@@ -80,7 +80,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       signyapse: process.env.SIGNYAPSE_API_KEY !== undefined,
       openai: process.env.OPENAI_API_KEY !== undefined,
       huggingface: process.env.HUGGINGFACE_API_KEY !== undefined,
-      astraDb: process.env.ASTRA_DB_TOKEN !== undefined
+      database: process.env.DATABASE_URL !== undefined,
+      localPostgres: process.env.USE_LOCAL_POSTGRES === 'true'
     };
     
     res.json(secretsStatus);
