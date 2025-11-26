@@ -254,7 +254,14 @@ router.get('/repos', (_req: Request, res: Response) => {
         id: key,
         ...repo
       })),
-      count: Object.keys(PINKYCOLLIE_REPOS).length
+      count: Object.keys(PINKYCOLLIE_REPOS).length,
+      stats: {
+        totalOwned: 109,
+        publicAccessible: 33,
+        privateRepositories: 76,
+        configuredHere: Object.keys(PINKYCOLLIE_REPOS).length
+      },
+      note: 'Private repositories require authenticated GitHub API access to scan'
     });
   } catch (error: any) {
     console.error('Error fetching repositories:', error);
