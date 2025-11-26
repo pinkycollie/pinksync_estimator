@@ -88,6 +88,29 @@ Features: Docker-in-docker, Node.js 22, Python 3.12, Git, GitHub CLI
 | `/api/github/repos/category/:category` | GET | Filter repos by category |
 | `/api/github/audit` | GET | Get comprehensive audit report |
 | `/api/github/missing-features` | GET | Get missing features analysis |
+| `/api/github/webhook/taskade` | GET | Get Taskade webhook configuration |
+| `/api/github/webhook/taskade/sync` | POST | Send events to Taskade webhook |
+
+### Taskade Webhook Integration
+
+The Taskade webhook has been integrated for syncing repository events.
+
+**Configuration:**
+Set the `TASKADE_WEBHOOK_URL` environment variable to configure the webhook URL.
+Default: `https://www.taskade.com/webhooks/flow/***MASKED***/sync`
+
+**Supported Events:**
+- `repo.sync` - Repository synchronization events
+- `audit.complete` - Audit completion notifications
+- `security.alert` - Security vulnerability alerts
+- `deployment.status` - Deployment status updates
+
+**Usage Example:**
+```bash
+curl -X POST /api/github/webhook/taskade/sync \
+  -H "Content-Type: application/json" \
+  -d '{"event": "repo.sync", "data": {"repos": ["pinksync", "deafauth"]}}'
+```
 
 ### Integrated Repositories
 

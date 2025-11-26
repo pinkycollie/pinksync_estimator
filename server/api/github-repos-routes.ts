@@ -361,4 +361,135 @@ router.get('/missing-features', (_req: Request, res: Response) => {
   }
 });
 
+// Taskade webhook integration configuration
+// URL can be overridden via TASKADE_WEBHOOK_URL environment variable
+const TASKADE_WEBHOOK_URL = process.env.TASKADE_WEBHOOK_URL || 
+  'https://www.taskade.com/webhooks/flow/01KAZQXCKSVKE0ES46XYB8BYCJ/sync';
+
+// Helper to mask sensitive URL parts for display
+const maskWebhookUrl = (url: string): string => {
+  try {
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/');
+    // Mask the flow ID if present
+    if (pathParts.length > 3) {
+      pathParts[pathParts.length - 2] = '***MASKED***';
+    }
+    urlObj.pathname = pathParts.join('/');
+    return urlObj.toString();
+  } catch {
+    return '***CONFIGURED***';
+  }
+};
+
+// Schema for webhook payload
+const webhookPayloadSchema = z.object({
+  event: z.string(),
+  data: z.record(z.unknown()).optional(),
+  timestamp: z.string().optional(),
+  source: z.string().optional()
+});
+
+// Send event to Taskade webhook
+router.post('/webhook/taskade/sync', async (req: Request, res: Response) => {
+  try {
+    const payload = webhookPayloadSchema.parse(req.body);
+    
+    const webhookPayload = {
+      event: payload.event,
+      data: payload.data || {},
+      timestamp: payload.timestamp || new Date().toISOString(),
+      source: payload.source || 'pinksync_estimator',
+      repositories: Object.keys(PINKYCOLLIE_REPOS)
+    };
+
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    try {
+      const response = await fetch(TASKADE_WEBHOOK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(webhookPayload),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          error: `Taskade webhook failed: ${response.statusText}`,
+          statusCode: response.status
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Event sent to Taskade webhook',
+        payload: webhookPayload
+      });
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId);
+      if (fetchError.name === 'AbortError') {
+        return res.status(504).json({
+          success: false,
+          error: 'Webhook request timed out'
+        });
+      }
+      throw fetchError;
+    }
+  } catch (error: any) {
+    console.error('Error sending to Taskade webhook:', error);
+    
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid payload',
+        details: error.errors
+      });
+    }
+    
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to send to Taskade webhook'
+    });
+  }
+});
+
+// Get Taskade webhook configuration
+router.get('/webhook/taskade', (_req: Request, res: Response) => {
+  const isConfigured = !!TASKADE_WEBHOOK_URL;
+  
+  res.json({
+    success: true,
+    webhook: {
+      name: 'Taskade Sync',
+      configured: isConfigured,
+      url: maskWebhookUrl(TASKADE_WEBHOOK_URL),
+      method: 'POST',
+      description: 'Webhook for syncing repository events with Taskade',
+      supportedEvents: [
+        'repo.sync',
+        'audit.complete',
+        'security.alert',
+        'deployment.status'
+      ],
+      usage: {
+        endpoint: '/api/github/webhook/taskade/sync',
+        method: 'POST',
+        payload: {
+          event: 'string (required)',
+          data: 'object (optional)',
+          timestamp: 'string (optional)',
+          source: 'string (optional)'
+        }
+      }
+    }
+  });
+});
+
 export default router;
