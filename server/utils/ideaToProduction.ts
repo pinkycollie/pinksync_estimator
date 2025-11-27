@@ -863,7 +863,7 @@ Created with ❤️ for accessibility
   /**
    * Generate a visual guide for Git operations
    */
-  private static async generateGitVisualGuide(
+  private static generateGitVisualGuide(
     repoName: string,
     platform: string
   ): string {
@@ -871,7 +871,7 @@ Created with ❤️ for accessibility
 
 ## 📊 Git Workflow Visualization
 
-```
+\`\`\`
 Local Repo                        Remote Repo (${platform})
 +-------------+                  +------------------+
 | Work Area   |                  |                  |
@@ -893,7 +893,7 @@ Local Repo                        Remote Repo (${platform})
 | Repository  |                  |  | Repository|   |
 +-------------+                  |  +-----------+   |
                                  +------------------+
-```
+\`\`\`
 
 ## 🎬 Common Git Commands
 
@@ -1032,12 +1032,12 @@ Thumbs.db
   /**
    * Generate a visual guide for Replit
    */
-  private static async generateReplitVisualGuide(projectTitle: string): string {
+  private static generateReplitVisualGuide(projectTitle: string): string {
     return `# Visual Replit Guide for ${projectTitle}
 
 ## 🖥️ Replit Interface Overview
 
-```
+\`\`\`
 +--------------------------------------------------------+
 |  +----------------+  +-------------------------------+  |
 |  | Files          |  | Code Editor                   |  |
@@ -1056,7 +1056,7 @@ Thumbs.db
 |  | ✅ Compiled successfully!                             |
 |  +--------------------------------------------------------+
 +--------------------------------------------------------+
-```
+\`\`\`
 
 ## 🔄 Workflow Steps
 
@@ -1107,12 +1107,12 @@ Thumbs.db
   /**
    * Generate a visual guide for Cursor AI
    */
-  private static async generateCursorAIVisualGuide(): string {
+  private static generateCursorAIVisualGuide(): string {
     return `# Visual Cursor AI Guide
 
 ## 🧠 Cursor AI Interface Overview
 
-```
+\`\`\`
 +--------------------------------------------------------+
 |  +----------------+  +-------------------------------+  |
 |  | Files          |  | Code Editor                   |  |
@@ -1129,7 +1129,7 @@ Thumbs.db
 |  +----------------+  |                                  |
 |                      |                                  |
 +--------------------------------------------------------+
-```
+\`\`\`
 
 ## 🔮 Using AI Assistance
 
@@ -1181,12 +1181,12 @@ Thumbs.db
   /**
    * Generate a visual guide for Netlify
    */
-  private static async generateNetlifyVisualGuide(): string {
+  private static generateNetlifyVisualGuide(): string {
     return `# Visual Netlify Deployment Guide
 
 ## 🌐 Netlify Deployment Flow
 
-```
+\`\`\`
  Local Project                    Netlify Platform
 +---------------+  git push     +-------------------+
 | Your Code     |-------------->| GitHub/GitLab     |
@@ -1209,7 +1209,7 @@ Thumbs.db
 +---------------+               +-------------------+
 | Production    |<--------------| Production Deploy |
 +---------------+               +-------------------+
-```
+\`\`\`
 
 ## 🚀 Deployment Steps
 
@@ -1266,12 +1266,12 @@ Thumbs.db
   /**
    * Generate a visual CI/CD workflow
    */
-  private static async generateCICDVisualWorkflow(config: any): string {
+  private static generateCICDVisualWorkflow(config: any): string {
     return `# Visual CI/CD Workflow Guide
 
 ## 🔄 CI/CD Pipeline Visualization
 
-```
+\`\`\`
                       +----------------+
                       | Code Changes   |
                       +----------------+
@@ -1299,7 +1299,7 @@ Thumbs.db
                       | Monitor        |
                       | Application    |
                       +----------------+
-```
+\`\`\`
 
 ## 🚦 Status Indicators
 
@@ -1344,7 +1344,7 @@ Thumbs.db
 
 ## 🔍 Monitoring Dashboard
 
-```
+\`\`\`
 +---------------------------------------------------------+
 | Deployment Status                                       |
 +---------------------------------------------------------+
@@ -1354,7 +1354,7 @@ Thumbs.db
 | Staging     | 🟢 Up  | 30 mins ago   | ✅ Pass | ✅ Pass |
 | Development | 🟢 Up  | 5 mins ago    | ✅ Pass | ✅ Pass |
 +---------------------------------------------------------+
-```
+\`\`\`
 
 ## 🚨 Troubleshooting Common Issues
 
