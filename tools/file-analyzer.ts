@@ -305,8 +305,8 @@ function analyzeDirectoryNonRecursive(dirPath: string): FileAnalysisResult[] {
   const items = fs.readdirSync(dirPath);
   
   for (const item of items) {
-    // Skip hidden files
-    if (item.startsWith('.')) {
+    // Skip hidden files and common ignored directories (consistent with recursive version)
+    if (item.startsWith('.') || item === 'node_modules' || item === 'dist' || item === '__pycache__') {
       continue;
     }
     

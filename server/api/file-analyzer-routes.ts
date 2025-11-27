@@ -32,6 +32,8 @@ const analyzeFileSchema = z.object({
 });
 
 const filterResultsSchema = z.object({
+  path: z.string().min(1, 'Path is required'),
+  recursive: z.boolean().optional().default(true),
   category: z.nativeEnum(FileCategory).optional(),
   extension: z.string().optional(),
   minSize: z.number().optional(),
@@ -273,30 +275,18 @@ router.post('/filter', (req: Request, res: Response) => {
   try {
     console.log('[FileAnalyzer] POST /filter', { body: req.body });
     
-    // Validate path input
-    const pathValidation = analyzePathSchema.safeParse(req.body);
-    if (!pathValidation.success) {
-      console.log('[FileAnalyzer] Validation failed:', pathValidation.error.errors);
+    // Validate all input with combined schema
+    const validationResult = filterResultsSchema.safeParse(req.body);
+    if (!validationResult.success) {
+      console.log('[FileAnalyzer] Validation failed:', validationResult.error.errors);
       return res.status(400).json({
         success: false,
         error: 'Validation error',
-        details: pathValidation.error.errors,
+        details: validationResult.error.errors,
       });
     }
     
-    // Validate filter options
-    const filterValidation = filterResultsSchema.safeParse(req.body);
-    if (!filterValidation.success) {
-      console.log('[FileAnalyzer] Filter validation failed:', filterValidation.error.errors);
-      return res.status(400).json({
-        success: false,
-        error: 'Validation error',
-        details: filterValidation.error.errors,
-      });
-    }
-    
-    const { path: targetPath, recursive } = pathValidation.data;
-    const { category, extension, minSize, maxSize } = filterValidation.data;
+    const { path: targetPath, recursive, category, extension, minSize, maxSize } = validationResult.data;
     
     // Resolve the path
     const absolutePath = path.resolve(targetPath);
