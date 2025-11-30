@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PinkSync Universal Estimator Dashboard</title>
+    <style>
+        :root {
+            --primary-color: #e91e8c;
+            --primary-light: #ff6bb5;
+            --primary-dark: #b3006c;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #3b82f6;
+            --bg-color: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(233, 30, 140, 0.3);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        header h1 .logo {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .industry-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .industry-selector label {
+            font-weight: 600;
+        }
+
+        .industry-selector select {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+        }
+
+        .industry-selector select option {
+            background: var(--bg-card);
+            color: var(--text-color);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+        }
+
+        .card-icon.ai { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+        .card-icon.users { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+        .card-icon.project { background: linear-gradient(135deg, #10b981, #34d399); }
+        .card-icon.risk { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+        .card-icon.industry { background: linear-gradient(135deg, var(--primary-color), var(--primary-light)); }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+
+        .metric {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
+        }
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .metric-value.success { color: var(--success-color); }
+        .metric-value.warning { color: var(--warning-color); }
+        .metric-value.danger { color: var(--danger-color); }
+        .metric-value.info { color: var(--info-color); }
+
+        .score-ring {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+
+        .score-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .score-ring circle {
+            fill: none;
+            stroke-width: 10;
+        }
+
+        .score-ring .bg {
+            stroke: rgba(255, 255, 255, 0.1);
+        }
+
+        .score-ring .progress {
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s ease-out;
+        }
+
+        .score-ring .score-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .risk-badge.low { background: rgba(16, 185, 129, 0.2); color: var(--success-color); }
+        .risk-badge.medium { background: rgba(245, 158, 11, 0.2); color: var(--warning-color); }
+        .risk-badge.high { background: rgba(239, 68, 68, 0.2); color: var(--danger-color); }
+        .risk-badge.critical { background: rgba(239, 68, 68, 0.4); color: #fca5a5; }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-bar .fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease-out;
+        }
+
+        .recommendations-list {
+            list-style: none;
+        }
+
+        .recommendations-list li {
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .recommendations-list li::before {
+            content: "💡";
+            flex-shrink: 0;
+        }
+
+        .benchmark-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .benchmark-table th,
+        .benchmark-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .benchmark-table th {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .benchmark-table tr:hover td {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .benchmark-bar {
+            height: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            min-width: 100px;
+        }
+
+        .benchmark-bar .fill {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .wide-card {
+            grid-column: 1 / -1;
+        }
+
+        .chart-container {
+            height: 300px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            padding: 20px;
+            gap: 10px;
+        }
+
+        .chart-bar {
+            flex: 1;
+            max-width: 60px;
+            background: linear-gradient(to top, var(--primary-color), var(--primary-light));
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 10px;
+            transition: height 0.5s ease-out;
+            position: relative;
+        }
+
+        .chart-bar .label {
+            position: absolute;
+            bottom: -25px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-align: center;
+            width: 100%;
+            transform: rotate(-45deg);
+            transform-origin: top left;
+            white-space: nowrap;
+        }
+
+        .chart-bar .value {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .tier-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .tier-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: border-color 0.3s;
+        }
+
+        .tier-card.active {
+            border-color: var(--primary-color);
+        }
+
+        .tier-card h4 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .tier-card .price {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-light);
+        }
+
+        .tier-card .price span {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .tier-card .features {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            margin-top: 40px;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tier-cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .metric-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>
+                <span class="logo">🩷</span>
+                PinkSync Universal Estimator
+            </h1>
+            <p>Industry-agnostic cost estimation, AI inference analysis, and project delivery metrics</p>
+            <div class="industry-selector">
+                <label for="industry">Select Industry:</label>
+                <select id="industry" onchange="updateDashboard()">
+                    <option value="technology">Technology</option>
+                    <option value="healthcare">Healthcare</option>
+                    <option value="finance">Finance</option>
+                    <option value="education">Education</option>
+                    <option value="government">Government</option>
+                    <option value="retail">Retail</option>
+                    <option value="manufacturing">Manufacturing</option>
+                    <option value="legal">Legal</option>
+                    <option value="real_estate">Real Estate</option>
+                    <option value="entertainment">Entertainment</option>
+                </select>
+            </div>
+        </header>
+
+        <!-- Key Metrics Row -->
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon ai">🤖</span>
+                        AI Efficiency
+                    </span>
+                    <span class="risk-badge low" id="ai-grade">A</span>
+                </div>
+                <div class="score-ring">
+                    <svg width="120" height="120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" id="ai-progress" cx="60" cy="60" r="50" 
+                                stroke="var(--success-color)" 
+                                stroke-dasharray="314" 
+                                stroke-dashoffset="31"></circle>
+                    </svg>
+                    <span class="score-text" id="ai-score">90</span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Accuracy</div>
+                        <div class="metric-value success" id="ai-accuracy">95%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Cost/Token</div>
+                        <div class="metric-value info" id="ai-cost">$0.002</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon users">👥</span>
+                        User Engagement
+                    </span>
+                    <span class="risk-badge low" id="engagement-status">Healthy</span>
+                </div>
+                <div class="score-ring">
+                    <svg width="120" height="120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" id="engagement-progress" cx="60" cy="60" r="50" 
+                                stroke="var(--info-color)" 
+                                stroke-dasharray="314" 
+                                stroke-dashoffset="47"></circle>
+                    </svg>
+                    <span class="score-text" id="engagement-score">85</span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Churn Rate</div>
+                        <div class="metric-value success" id="churn-rate">2.5%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Adoption</div>
+                        <div class="metric-value info" id="adoption-rate">78%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon project">📊</span>
+                        Project Delivery
+                    </span>
+                    <span class="risk-badge low" id="delivery-status">On Track</span>
+                </div>
+                <div class="score-ring">
+                    <svg width="120" height="120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" id="delivery-progress" cx="60" cy="60" r="50" 
+                                stroke="var(--success-color)" 
+                                stroke-dasharray="314" 
+                                stroke-dashoffset="63"></circle>
+                    </svg>
+                    <span class="score-text" id="delivery-score">80</span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">ROI</div>
+                        <div class="metric-value success" id="roi">125%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Completion</div>
+                        <div class="metric-value info" id="completion">92%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon risk">⚠️</span>
+                        Risk Level
+                    </span>
+                    <span class="risk-badge low" id="risk-level">Low</span>
+                </div>
+                <div class="score-ring">
+                    <svg width="120" height="120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" id="risk-progress" cx="60" cy="60" r="50" 
+                                stroke="var(--success-color)" 
+                                stroke-dasharray="314" 
+                                stroke-dashoffset="251"></circle>
+                    </svg>
+                    <span class="score-text" id="risk-score">20</span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Critical Risks</div>
+                        <div class="metric-value success" id="critical-risks">0</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Open Items</div>
+                        <div class="metric-value warning" id="open-items">3</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Industry Configuration -->
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon industry">🏢</span>
+                        Industry Configuration
+                    </span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Industry</div>
+                        <div class="metric-value" id="industry-name">Technology</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Multiplier</div>
+                        <div class="metric-value info" id="total-multiplier">1.54x</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Compliance</div>
+                        <div class="metric-value" id="compliance-mult">1.1x</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Security</div>
+                        <div class="metric-value" id="security-mult">1.4x</div>
+                    </div>
+                </div>
+                <div style="margin-top: 15px;">
+                    <div class="metric-label">Data Sensitivity Level</div>
+                    <div class="progress-bar">
+                        <div class="fill" id="sensitivity-bar" style="width: 60%; background: var(--info-color);"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.8rem; color: var(--text-muted);">
+                        <span>Low</span>
+                        <span id="sensitivity-level">3/5</span>
+                        <span>High</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">📋 Regulatory Requirements</span>
+                </div>
+                <ul class="recommendations-list" id="regulatory-list">
+                    <li>SOC 2 Type II Compliance</li>
+                    <li>ISO 27001 Certification</li>
+                    <li>GDPR Data Protection</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- User Tiers -->
+        <div class="dashboard-grid">
+            <div class="card wide-card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon users">💳</span>
+                        User Management Tiers
+                    </span>
+                </div>
+                <div class="tier-cards">
+                    <div class="tier-card">
+                        <h4>Free</h4>
+                        <div class="price">$0<span>/mo</span></div>
+                        <div class="features">
+                            100 API calls<br>
+                            1 GB storage<br>
+                            10K AI tokens
+                        </div>
+                    </div>
+                    <div class="tier-card">
+                        <h4>Basic</h4>
+                        <div class="price">$9.99<span>/mo</span></div>
+                        <div class="features">
+                            1K API calls<br>
+                            10 GB storage<br>
+                            100K AI tokens
+                        </div>
+                    </div>
+                    <div class="tier-card active">
+                        <h4>Professional</h4>
+                        <div class="price">$29.99<span>/mo</span></div>
+                        <div class="features">
+                            10K API calls<br>
+                            100 GB storage<br>
+                            500K AI tokens
+                        </div>
+                    </div>
+                    <div class="tier-card">
+                        <h4>Enterprise</h4>
+                        <div class="price">$99.99<span>/mo</span></div>
+                        <div class="features">
+                            Unlimited calls<br>
+                            1 TB storage<br>
+                            Unlimited tokens
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cross-Industry Benchmark -->
+        <div class="dashboard-grid">
+            <div class="card wide-card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon industry">📈</span>
+                        Cross-Industry Cost Benchmark
+                    </span>
+                    <span style="color: var(--text-muted); font-size: 0.9rem;">Base cost: $1,000</span>
+                </div>
+                <table class="benchmark-table">
+                    <thead>
+                        <tr>
+                            <th>Industry</th>
+                            <th>Multiplier</th>
+                            <th>Adjusted Cost</th>
+                            <th>Relative Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="benchmark-body">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="dashboard-grid">
+            <div class="card wide-card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon risk">💡</span>
+                        Top Recommendations
+                    </span>
+                </div>
+                <ul class="recommendations-list" id="recommendations-list">
+                    <li>AI performance is optimal. Continue monitoring for any degradation.</li>
+                    <li>User engagement is healthy. Focus on maintaining current satisfaction levels.</li>
+                    <li>Project delivery is on track. Maintain current practices and monitoring.</li>
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>PinkSync Universal Estimator v1.0 | Industry-Agnostic Cost Analysis Framework</p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">
+                Supports Healthcare, Finance, Education, Government, Retail, Manufacturing, Technology, Legal, Real Estate, Entertainment
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // Industry configurations
+        const industryConfigs = {
+            healthcare: {
+                name: 'Healthcare',
+                compliance: 1.5,
+                security: 1.6,
+                operational: 1.2,
+                sensitivity: 5,
+                regulations: ['HIPAA', 'HITECH', 'FDA 21 CFR Part 11']
+            },
+            finance: {
+                name: 'Finance',
+                compliance: 1.6,
+                security: 1.7,
+                operational: 1.3,
+                sensitivity: 5,
+                regulations: ['SOX', 'PCI-DSS', 'GDPR', 'Basel III']
+            },
+            education: {
+                name: 'Education',
+                compliance: 1.2,
+                security: 1.2,
+                operational: 1.0,
+                sensitivity: 3,
+                regulations: ['FERPA', 'COPPA']
+            },
+            government: {
+                name: 'Government',
+                compliance: 1.7,
+                security: 1.8,
+                operational: 1.4,
+                sensitivity: 5,
+                regulations: ['FedRAMP', 'FISMA', 'NIST 800-53']
+            },
+            retail: {
+                name: 'Retail',
+                compliance: 1.1,
+                security: 1.3,
+                operational: 1.1,
+                sensitivity: 3,
+                regulations: ['PCI-DSS', 'GDPR', 'CCPA']
+            },
+            manufacturing: {
+                name: 'Manufacturing',
+                compliance: 1.2,
+                security: 1.2,
+                operational: 1.3,
+                sensitivity: 2,
+                regulations: ['ISO 9001', 'ISO 27001']
+            },
+            technology: {
+                name: 'Technology',
+                compliance: 1.1,
+                security: 1.4,
+                operational: 1.0,
+                sensitivity: 3,
+                regulations: ['SOC 2', 'ISO 27001', 'GDPR']
+            },
+            legal: {
+                name: 'Legal',
+                compliance: 1.5,
+                security: 1.5,
+                operational: 1.2,
+                sensitivity: 4,
+                regulations: ['Attorney-Client Privilege', 'ABA Guidelines']
+            },
+            real_estate: {
+                name: 'Real Estate',
+                compliance: 1.1,
+                security: 1.2,
+                operational: 1.1,
+                sensitivity: 2,
+                regulations: ['RESPA', 'Fair Housing Act']
+            },
+            entertainment: {
+                name: 'Entertainment',
+                compliance: 1.0,
+                security: 1.2,
+                operational: 1.1,
+                sensitivity: 2,
+                regulations: ['DMCA', 'GDPR']
+            }
+        };
+
+        function updateScoreRing(progressId, score) {
+            const circumference = 314; // 2 * PI * 50
+            const offset = circumference - (score / 100) * circumference;
+            document.getElementById(progressId).style.strokeDashoffset = offset;
+        }
+
+        function updateDashboard() {
+            const industry = document.getElementById('industry').value;
+            const config = industryConfigs[industry];
+            
+            // Update industry info
+            document.getElementById('industry-name').textContent = config.name;
+            const totalMult = config.compliance * config.security * config.operational;
+            document.getElementById('total-multiplier').textContent = totalMult.toFixed(2) + 'x';
+            document.getElementById('compliance-mult').textContent = config.compliance.toFixed(1) + 'x';
+            document.getElementById('security-mult').textContent = config.security.toFixed(1) + 'x';
+            document.getElementById('sensitivity-level').textContent = config.sensitivity + '/5';
+            document.getElementById('sensitivity-bar').style.width = (config.sensitivity * 20) + '%';
+            
+            // Update regulatory requirements
+            const regList = document.getElementById('regulatory-list');
+            regList.innerHTML = config.regulations.map(reg => `<li>${reg}</li>`).join('');
+            
+            // Update benchmark table
+            updateBenchmarkTable();
+        }
+
+        function updateBenchmarkTable() {
+            const baseCost = 1000;
+            const tbody = document.getElementById('benchmark-body');
+            
+            const industries = Object.entries(industryConfigs).map(([key, config]) => {
+                const mult = config.compliance * config.security * config.operational;
+                return {
+                    key,
+                    name: config.name,
+                    multiplier: mult,
+                    adjustedCost: baseCost * mult
+                };
+            }).sort((a, b) => a.adjustedCost - b.adjustedCost);
+            
+            const maxCost = Math.max(...industries.map(i => i.adjustedCost));
+            
+            tbody.innerHTML = industries.map(ind => {
+                const widthPercent = (ind.adjustedCost / maxCost) * 100;
+                const color = ind.multiplier < 1.5 ? 'var(--success-color)' : 
+                              ind.multiplier < 2.5 ? 'var(--warning-color)' : 'var(--danger-color)';
+                
+                return `
+                    <tr>
+                        <td>${ind.name}</td>
+                        <td>${ind.multiplier.toFixed(2)}x</td>
+                        <td>$${ind.adjustedCost.toFixed(2)}</td>
+                        <td>
+                            <div class="benchmark-bar">
+                                <div class="fill" style="width: ${widthPercent}%; background: ${color};">
+                                    ${widthPercent.toFixed(0)}%
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDashboard();
+            
+            // Set initial score ring values
+            updateScoreRing('ai-progress', 90);
+            updateScoreRing('engagement-progress', 85);
+            updateScoreRing('delivery-progress', 80);
+            updateScoreRing('risk-progress', 20);
+        });
+    </script>
+</body>
+</html>
