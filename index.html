@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PinkSync Resource Estimator (MBTQ)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for accessibility and theme cohesion */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117; 
+        }
+        .card {
+            background-color: #161b22;
+            border-color: #30363d;
+        }
+        .metric-box {
+            background-color: #30173e; 
+            border-left: 4px solid #f778ba; 
+        }
+        .input-group label {
+            color: #c9d1d9;
+            font-weight: 500;
+        }
+        .input-group input, .input-group select {
+            background-color: #21262d;
+            border-color: #484f58; 
+            color: #f0f6fc;
+            padding: 10px;
+            border-radius: 8px; 
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .input-group input:focus, .input-group select:focus {
+            outline: none;
+            border-color: #a778f7; 
+            box-shadow: 0 0 0 3px rgba(167, 120, 247, 0.5);
+        }
+        button:focus-visible {
+            outline: 3px solid #a778f7;
+            outline-offset: 2px;
+        }
+        .pink-text {
+            color: #f778ba;
+        }
+        .purple-text {
+            color: #a778f7;
+        }
+        .red-flag {
+            color: #f87171; /* Tailwind red-400 */
+        }
+        .green-flag {
+             color: #4ade80; /* Tailwind green-400 */
+        }
+    </style>
+</head>
+<body>
+
+<div class="min-h-screen p-4 sm:p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-purple-400">
+                PinkSync Resource Estimator
+            </h1>
+            <p class="text-gray-400 mt-2">Toolkit for MBTQ Monorepo Cost and Orchestration Planning</p>
+        </header>
+
+        <!-- Main Estimator Card -->
+        <div class="card p-6 rounded-xl shadow-2xl border">
+            <h2 class="text-2xl font-semibold mb-6 text-white border-b border-gray-700 pb-3">Sync & Compute Parameters</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <!-- 1. Data Size Input -->
+                <div class="input-group">
+                    <label for="dataSize" class="block text-sm font-medium mb-2">Total Data Size (GB)</label>
+                    <input type="number" id="dataSize" value="10" min="0.1" step="0.1"
+                           class="w-full">
+                    <p class="text-xs text-gray-500 mt-1">Total data to be synced (e.g., vCODE video backups).</p>
+                </div>
+
+                <!-- 2. Network Bandwidth Input -->
+                <div class="input-group">
+                    <label for="bandwidth" class="block text-sm font-medium mb-2">Network Bandwidth (Mbps)</label>
+                    <input type="number" id="bandwidth" value="100" min="1" step="1"
+                           class="w-full">
+                    <p class="text-xs text-gray-500 mt-1">Available speed for Source $\leftrightarrow$ Target connection.</p>
+                </div>
+                
+                <!-- 3. File Count Input (Overhead Multiplier) -->
+                <div class="input-group">
+                    <label for="fileCount" class="block text-sm font-medium mb-2">Total File Count (Items to Process)</label>
+                    <input type="number" id="fileCount" value="5000" min="10" step="100"
+                           class="w-full">
+                    <p class="text-xs text-gray-500 mt-1">Correlates to the number of **pinksync** API calls needed.</p>
+                </div>
+                
+                <!-- 4. Latency/Overhead Input -->
+                <div class="input-group">
+                    <label for="latency" class="block text-sm font-medium mb-2">Per-Item Overhead (ms)</label>
+                    <input type="number" id="latency" value="50" min="10" step="1"
+                           class="w-full">
+                    <p class="text-xs text-gray-500 mt-1">Simulates **DeafAUTH** validation + **pinksync** routing latency.</p>
+                </div>
+
+                <!-- 5. Cloud Cost Input -->
+                <div class="input-group">
+                    <label for="costPerGB" class="block text-sm font-medium mb-2">Transfer Cost Per GB ($)</label>
+                    <input type="number" id="costPerGB" value="0.05" min="0" step="0.01"
+                           class="w-full">
+                    <p class="text-xs text-gray-500 mt-1">Cloud Egress/Transfer fee (e.g., GCP or Cloudflare storage cost).</p>
+                </div>
+                
+                <!-- 6. AI Model Selection (New Input) -->
+                <div class="input-group">
+                    <label for="aiModelType" class="block text-sm font-medium mb-2">AI Model Execution Cost</label>
+                    <select id="aiModelType" class="w-full">
+                        <option value="0.0002">RAG Query (Cheap, e.g., TWC Policy Check) - $0.0002/item</option>
+                        <option value="0.0017" selected>GPT-3.5 Inference (Standard, e.g., Simplification) - $0.0017/item</option>
+                        <option value="0.025">GPT-4 Turbo Inference (Expensive, e.g., Full Business Plan) - $0.025/item</option>
+                        <option value="0.10">Custom GPU Model (Very Expensive, e.g., ASL Glossing) - $0.10/item</option>
+                    </select>
+                    <p class="text-xs text-gray-500 mt-1">Selected model dictates cost per **360Magicians** call.</p>
+                </div>
+            </div>
+            
+            <div class="flex space-x-4 mt-8">
+                <button onclick="calculateSync()" 
+                        class="flex-1 py-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg transition-colors">
+                    Calculate PinkSync Estimate
+                </button>
+                <button onclick="resetInputs()" 
+                        class="w-1/4 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors">
+                    Reset
+                </button>
+            </div>
+        </div>
+        
+        <!-- Results Card -->
+        <div id="results-card" class="card p-6 rounded-xl shadow-2xl border mt-8 hidden">
+            <h2 class="text-2xl font-semibold mb-6 text-white border-b border-gray-700 pb-3">Forecasted Metrics (Output)</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                
+                <!-- Total Time -->
+                <div class="metric-box p-4 rounded-lg">
+                    <div class="text-lg font-medium purple-text mb-1">Total Time</div>
+                    <div id="timeResult" class="text-3xl font-bold text-white">0 min</div>
+                </div>
+
+                <!-- Total Cost -->
+                <div class="metric-box p-4 rounded-lg">
+                    <div class="text-lg font-medium pink-text mb-1">Total Cost</div>
+                    <div id="costResult" class="text-3xl font-bold text-white">$0.00</div>
+                </div>
+                
+                <!-- AI Cost Ratio (New Metric) -->
+                <div class="metric-box p-4 rounded-lg">
+                    <div class="text-lg font-medium text-white mb-1">AI Cost Ratio</div>
+                    <div id="aiCostRatio" class="text-3xl font-bold text-white">0%</div>
+                </div>
+                
+            </div>
+
+            <!-- Detailed Breakdown (Compliance/TWC focus) -->
+            <div class="mt-6 p-4 rounded-lg border border-gray-700 bg-gray-800">
+                <h3 class="text-lg font-semibold text-white mb-2">Compliance & Cost Optimization Breakdown</h3>
+                <div class="text-sm text-gray-400 space-y-1">
+                    <p><span class="font-medium purple-text">1. Raw Data Transfer Time:</span> <span id="transferTime">0 seconds</span></p>
+                    <p><span class="font-medium pink-text">2. Total Orchestration Overhead:</span> <span id="overheadTime">0 seconds</span> (Latency penalty)</p>
+                    <p><span class="font-medium purple-text">3. AI Execution Cost:</span> <span id="aiCost">\$0.00</span></p>
+                    <p class="mt-3 text-sm" id="complianceNote">
+                        Note: The $\text{Per-Item Latency}$ is critical. Low latency ensures real-time VRI/AI calls (pinksync) are not delayed by API overhead.
+                    </p>
+                    <p class="mt-3 text-sm red-flag font-bold" id="costRecommendation">
+                        Recommendation: Evaluate model tier.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Project Reference -->
+        <div class="mt-12 text-center text-gray-500 text-xs">
+            <p>Built for the PinkyCollie Monorepo and MBTQ Universe Ecosystem.</p>
+            <p class="mt-1">Toolkit for optimizing PinkSync Orchestration and 360Magicians resource usage.</p>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // Constants for calculation
+    const BITS_PER_BYTE = 8;
+    const SECONDS_PER_MINUTE = 60;
+    
+    // Default values for reset
+    const defaultValues = {
+        dataSize: 10,
+        bandwidth: 100,
+        latency: 50,
+        fileCount: 5000,
+        costPerGB: 0.05,
+        aiCostPerRun: 0.0017 // This default is overridden by the select box initially
+    };
+
+    function getAICostPerRun() {
+        return parseFloat(document.getElementById('aiModelType').value);
+    }
+
+    function calculateSync() {
+        // --- 1. GET USER INPUTS ---
+        const dataSizeGB = parseFloat(document.getElementById('dataSize').value) || 0;
+        const bandwidthMbps = parseFloat(document.getElementById('bandwidth').value) || 0;
+        const latencyMS = parseFloat(document.getElementById('latency').value) || 0;
+        const fileCount = parseInt(document.getElementById('fileCount').value) || 0;
+        const costPerGB = parseFloat(document.getElementById('costPerGB').value) || 0;
+        const aiCostPerRun = getAICostPerRun(); // Get cost from select input
+
+        // --- 2. CALCULATE TIME METRICS ---
+        let transferTimeSeconds = 0;
+        
+        const dataSizeMegabits = dataSizeGB * 1024 * BITS_PER_BYTE; 
+
+        if (bandwidthMbps > 0) {
+            transferTimeSeconds = dataSizeMegabits / bandwidthMbps;
+        }
+
+        const overheadTimeSeconds = (fileCount * latencyMS) / 1000; 
+        const totalTimeSeconds = transferTimeSeconds + overheadTimeSeconds;
+        const totalTimeMinutes = totalTimeSeconds / SECONDS_PER_MINUTE;
+
+        // --- 3. CALCULATE COST METRICS ---
+        
+        const transferCostTotal = dataSizeGB * costPerGB;
+        const aiCostTotal = fileCount * aiCostPerRun;
+        const totalCost = transferCostTotal + aiCostTotal;
+        
+        // AI Cost Ratio Calculation (New)
+        let aiCostRatio = 0;
+        if (totalCost > 0) {
+            aiCostRatio = (aiCostTotal / totalCost) * 100;
+        }
+
+        // --- 4. DISPLAY RESULTS ---
+        
+        // Format Time Result (display minutes if over 2 minutes, otherwise seconds)
+        document.getElementById('timeResult').innerText = totalTimeMinutes >= 2 
+            ? `${totalTimeMinutes.toFixed(1)} min` 
+            : `${totalTimeSeconds.toFixed(1)} sec`;
+
+        document.getElementById('costResult').innerText = `$${totalCost.toFixed(2)}`;
+        document.getElementById('aiCostRatio').innerText = `${aiCostRatio.toFixed(0)}% AI Cost`;
+
+        // Breakdown for Auditing
+        document.getElementById('transferTime').innerText = `${transferTimeSeconds.toFixed(1)} seconds`;
+        document.getElementById('overheadTime').innerText = `${overheadTimeSeconds.toFixed(1)} seconds`;
+        document.getElementById('aiCost').innerText = `$${aiCostTotal.toFixed(2)} (${fileCount} runs @ $${aiCostPerRun.toFixed(4)}/run)`;
+        
+        // --- 5. COMPLIANCE & RECOMMENDATION LOGIC ---
+        
+        const complianceNote = document.getElementById('complianceNote');
+        const costRecommendation = document.getElementById('costRecommendation');
+        
+        // A. Overhead Time Compliance Check (Accessibility)
+        if (overheadTimeSeconds >= 5) {
+            complianceNote.classList.add('text-yellow-400');
+            complianceNote.classList.remove('text-red-400');
+            complianceNote.innerHTML = `⚠️ **Warning:** High Orchestration Overhead ($\ge 5$ seconds). This may cause perceptible lag and impact $\text{VRI}$ quality. Optimization of $\text{API}$ calls needed.`;
+        } else {
+            complianceNote.classList.add('text-red-400');
+            complianceNote.classList.remove('text-yellow-400');
+            complianceNote.innerHTML = `Note: The $\text{Per-Item Latency}$ is critical. Low latency ensures real-time VRI/AI calls (pinksync) are not delayed by API overhead.`;
+        }
+        
+        // B. Cost Optimization Check (Financial)
+        costRecommendation.classList.remove('red-flag', 'green-flag');
+        
+        if (aiCostRatio > 70) {
+            costRecommendation.classList.add('red-flag');
+            costRecommendation.innerText = `🚨 **HIGH COST WARNING:** AI represents ${aiCostRatio.toFixed(0)}% of total spend. Consider switching to a cheaper RAG model or optimizing the workflow (reduce File Count).`;
+        } else if (aiCostRatio < 20) {
+            costRecommendation.classList.add('green-flag');
+            costRecommendation.innerText = `✅ Cost Structure is Efficient: $\text{AI}$ use is minimal. Focus optimization on reducing transfer fees.`;
+        } else {
+            costRecommendation.innerText = `Budget is balanced. $\text{AI}$ spend is acceptable at ${aiCostRatio.toFixed(0)}% of total.`;
+        }
+
+
+        document.getElementById('results-card').classList.remove('hidden');
+    }
+
+    function resetInputs() {
+        document.getElementById('dataSize').value = defaultValues.dataSize;
+        document.getElementById('bandwidth').value = defaultValues.bandwidth;
+        document.getElementById('latency').value = defaultValues.latency;
+        document.getElementById('fileCount').value = defaultValues.fileCount;
+        document.getElementById('costPerGB').value = defaultValues.costPerGB;
+        // Resetting select box to its default selected option (GPT-3.5 Inference)
+        document.getElementById('aiModelType').value = '0.0017'; 
+        document.getElementById('results-card').classList.add('hidden');
+    }
+</script>
+</body>
+</html>
