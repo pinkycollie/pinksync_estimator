@@ -1,6 +1,13 @@
 # PinkSync Estimator - AI OS Platform
 
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![AI Powered](https://img.shields.io/badge/AI%20Powered-OpenAI%20%7C%20HuggingFace-FF6F00?logo=openai&logoColor=white)](https://openai.com/)
+[![Accessibility](https://img.shields.io/badge/Accessibility-Deaf%20Community%20Focused-0077B5?logo=accessibility&logoColor=white)](FEATURE_SPECIFICATION.md)
+[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen?logo=github)](CONTRIBUTING.md)
 
 An AI-powered productivity platform for multi-platform file synchronization, document management, and workflow automation. This project includes accessible features designed with the deaf community in mind.
 
