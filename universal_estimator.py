@@ -11,13 +11,24 @@ This module extends the core PinkSyncEstimator with support for:
 - Project delivery metrics and efficiency tracking
 - Risk assessment and recommendations
 - Cross-industry benchmarking
+
+Dependencies:
+    - pinksync_estimator: The base PinkSyncEstimator class must be available in the same
+      directory or Python path. This module inherits from PinkSyncEstimator.
 """
 
 import math
 from typing import Dict, Any, List, Optional
 from dataclasses import dataclass, field
 from enum import Enum
-from pinksync_estimator import PinkSyncEstimator
+
+try:
+    from pinksync_estimator import PinkSyncEstimator
+except ImportError as e:
+    raise ImportError(
+        "Cannot import PinkSyncEstimator. Ensure pinksync_estimator.py is in the Python path. "
+        f"Original error: {e}"
+    )
 
 
 class Industry(Enum):
@@ -261,6 +272,14 @@ class UniversalPinkSyncEstimator(PinkSyncEstimator):
     COST_PER_OUTPUT_TOKEN = 0.00003  # $30 per 1M tokens
     COST_PER_GPU_HOUR = 2.50  # $2.50 per GPU hour
     COST_PER_MEMORY_GB_HOUR = 0.10  # $0.10 per GB-hour
+    
+    # Churn scoring constants
+    # Churn threshold multiplier: at 20% churn rate (0.20), score becomes 0
+    # Formula: score = 100 - (churn_rate * 100 * CHURN_THRESHOLD_MULTIPLIER)
+    CHURN_THRESHOLD_MULTIPLIER = 5  # 100 / (0.20 * 100) = 5
+    
+    # Default accuracy for AI efficiency calculations when not provided
+    DEFAULT_AI_ACCURACY = 0.92
 
     def __init__(self, industry: Industry = Industry.TECHNOLOGY):
         """
@@ -363,7 +382,7 @@ class UniversalPinkSyncEstimator(PinkSyncEstimator):
             'adjusted_cost': adjusted_cost,
             'model_name': metrics.model_name,
             'tokens_processed': metrics.tokens_processed or (metrics.input_tokens + metrics.output_tokens),
-            'cost_per_token': adjusted_cost / max(1, metrics.input_tokens + metrics.output_tokens)
+            'cost_per_token': adjusted_cost / max(1, metrics.tokens_processed or (metrics.input_tokens + metrics.output_tokens))
         }
     
     def calculate_ai_efficiency_score(
@@ -512,8 +531,8 @@ class UniversalPinkSyncEstimator(PinkSyncEstimator):
         :rtype: Dict[str, Any]
         """
         # Component scores (0-100 scale)
-        # Churn score: lower churn is better (invert and scale)
-        churn_score = max(0, 100 - (metrics.churn_rate * 100 * 5))  # 20% churn = 0 score
+        # Churn score: lower churn is better (invert and scale using CHURN_THRESHOLD_MULTIPLIER)
+        churn_score = max(0, 100 - (metrics.churn_rate * 100 * self.CHURN_THRESHOLD_MULTIPLIER))
         
         # Engagement score: direct percentage
         engagement_score = metrics.engagement_rate * 100
@@ -1143,7 +1162,7 @@ class UniversalPinkSyncEstimator(PinkSyncEstimator):
         if ai_metrics:
             ai_cost = self.calculate_ai_inference_cost(ai_metrics)
             ai_efficiency = self.calculate_ai_efficiency_score(
-                accuracy=0.92,  # Default high accuracy
+                accuracy=self.DEFAULT_AI_ACCURACY,
                 cost=ai_cost['adjusted_cost'],
                 speed_ms=ai_metrics.inference_time_ms
             )
