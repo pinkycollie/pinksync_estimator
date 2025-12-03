@@ -44,6 +44,15 @@ npm run build
 3. Include a clear description of your changes in the PR
 4. Reference any related issues in your PR description
 
+## Keeping Dependencies Up to Date
+
+This project uses GitHub Dependabot to automatically create pull requests when dependencies have updates available. For detailed information about how dependencies are managed, see [UPDATING.md](UPDATING.md).
+
+When reviewing Dependabot PRs:
+- Check the changelog for breaking changes
+- Ensure CI checks pass
+- Test locally for major version updates
+
 ## Reporting Issues
 
 When reporting issues, please include:
