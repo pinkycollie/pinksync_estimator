@@ -32,3 +32,13 @@ coverage/
 # Database
 *.sqlite
 *.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.eggs/
+venv/
+.venv/
