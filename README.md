@@ -87,3 +87,4 @@ This project is licensed under the MIT License - see the package.json file for d
 - [Architecture Overview](ARCHITECTURE.md)
 - [Feature Specification](FEATURE_SPECIFICATION.md)
 - [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md)
+- [Updating Dependencies](UPDATING.md)
