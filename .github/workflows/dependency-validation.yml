@@ -67,7 +67,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -e . || pip install flask flask-sqlalchemy gunicorn pytest python-dotenv
+          # Install from pyproject.toml using pip
+          pip install -e .
 
       - name: List outdated packages
         run: pip list --outdated || true

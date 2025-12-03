@@ -22,9 +22,19 @@ This repository uses [GitHub Dependabot](https://docs.github.com/en/code-securit
 
 ### Package Groups
 
-Dependabot groups related packages together:
+Dependabot groups related packages together to reduce PR noise and ensure compatible updates:
+
+**npm packages:**
 - **radix-ui**: All `@radix-ui/*` packages (UI components)
 - **react**: Core React packages (`react`, `react-dom`, `@types/react`, `@types/react-dom`)
+- **ai-packages**: AI/ML packages (`@anthropic-ai/*`, `@huggingface/*`, `openai`)
+- **database**: Database packages (`@datastax/*`, `@neondatabase/*`, `drizzle-*`)
+- **typescript-tooling**: TypeScript and build tools (`typescript`, `@types/node`, `tsx`, `esbuild`)
+- **dev-minor**: Development dependencies (minor and patch updates only)
+
+**Python packages:**
+- **flask**: Flask and web packages (`flask*`, `gunicorn`)
+- **testing**: Testing packages (`pytest*`)
 
 ## Manual Dependency Updates
 
