@@ -16,13 +16,8 @@ const router = Router();
  * - Accessibility Validator: Deaf-First Accessibility Automation
  */
 
-// Repository configuration schema
-const repoConfigSchema = z.object({
-  name: z.string(),
-  owner: z.string().default('pinkycollie'),
-  branch: z.string().default('main'),
-  enabled: z.boolean().default(true)
-});
+// Category validation schema
+const categorySchema = z.enum(['accessibility', 'sync', 'trust', 'ai', 'platform', 'infrastructure', 'business', 'all']);
 
 // MBTQ.dev Ecosystem Repositories (from live GitHub API scan)
 const PINKYCOLLIE_REPOS = {
@@ -304,7 +299,15 @@ router.get('/repos/:repoId', (req: Request, res: Response) => {
 // Get repository categories
 router.get('/repos/category/:category', (req: Request, res: Response) => {
   try {
-    const { category } = req.params;
+    const categoryResult = categorySchema.safeParse(req.params.category.toLowerCase());
+    if (!categoryResult.success) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid category',
+        availableCategories: categorySchema.options
+      });
+    }
+    const category = categoryResult.data;
     
     // Dynamic category mapping based on repo 'category' field
     const categoryMapping: Record<string, string[]> = {
@@ -318,15 +321,7 @@ router.get('/repos/category/:category', (req: Request, res: Response) => {
       'all': Object.keys(PINKYCOLLIE_REPOS)
     };
 
-    const repoIds = categoryMapping[category.toLowerCase()];
-    
-    if (!repoIds) {
-      return res.status(404).json({
-        success: false,
-        error: `Category '${category}' not found`,
-        availableCategories: Object.keys(categoryMapping)
-      });
-    }
+    const repoIds = categoryMapping[category];
 
     const repos = repoIds.map(id => ({
       id,
@@ -343,7 +338,7 @@ router.get('/repos/category/:category', (req: Request, res: Response) => {
     console.error('Error fetching repositories by category:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to fetch repositories by category'
+      error: 'An error occurred while fetching repositories'
     });
   }
 });
@@ -521,9 +516,9 @@ router.get('/missing-features', (_req: Request, res: Response) => {
 });
 
 // Taskade webhook integration configuration
-// URL can be overridden via TASKADE_WEBHOOK_URL environment variable
-const TASKADE_WEBHOOK_URL = process.env.TASKADE_WEBHOOK_URL || 
-  'https://www.taskade.com/webhooks/flow/01KAZQXCKSVKE0ES46XYB8BYCJ/sync';
+// IMPORTANT: No sensitive default webhook URL. Must be set via environment variable.
+const TASKADE_WEBHOOK_URL = process.env.TASKADE_WEBHOOK_URL ||
+  'https://www.taskade.com/webhooks/flow/***MASKED***/sync'; // Non-functional placeholder
 
 // Helper to mask sensitive URL parts for display
 const maskWebhookUrl = (url: string): string => {
@@ -551,6 +546,12 @@ const webhookPayloadSchema = z.object({
 
 // Send event to Taskade webhook
 router.post('/webhook/taskade/sync', async (req: Request, res: Response) => {
+  // Validate webhook secret for authentication
+  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+  if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
+
   try {
     const payload = webhookPayloadSchema.parse(req.body);
     
@@ -581,7 +582,7 @@ router.post('/webhook/taskade/sync', async (req: Request, res: Response) => {
       if (!response.ok) {
         return res.status(response.status).json({
           success: false,
-          error: `Taskade webhook failed: ${response.statusText}`,
+          error: 'Webhook request failed',
           statusCode: response.status
         });
       }
@@ -607,14 +608,13 @@ router.post('/webhook/taskade/sync', async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({
         success: false,
-        error: 'Invalid payload',
-        details: error.errors
+        error: 'Invalid payload'
       });
     }
     
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to send to Taskade webhook'
+      error: 'An error occurred while processing the request'
     });
   }
 });

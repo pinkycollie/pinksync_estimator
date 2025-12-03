@@ -15,20 +15,19 @@ import json
 import os
 import sys
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
 
 try:
     import requests
 except ImportError:
-    print("Installing requests...")
-    os.system("pip3 install requests")
-    import requests
+    print("ERROR: 'requests' package is required. Install with: pip install requests")
+    sys.exit(1)
 
-# Taskade webhook URL from environment or default
-TASKADE_WEBHOOK_URL = os.environ.get(
-    'TASKADE_WEBHOOK',
-    'https://www.taskade.com/webhooks/01KAZEPCKA9B3QG8CJ4XF6J69S'
-)
+# Taskade webhook URL from environment (must be set)
+TASKADE_WEBHOOK_URL = os.environ.get('TASKADE_WEBHOOK')
+if not TASKADE_WEBHOOK_URL:
+    print("ERROR: TASKADE_WEBHOOK environment variable must be set")
+    sys.exit(1)
 
 # Repository info
 REPO_NAME = os.environ.get('GITHUB_REPOSITORY', 'pinkycollie/pinksync_estimator')
@@ -74,9 +73,25 @@ def parse_trivy_results(filepath: str) -> Dict[str, Any]:
             'has_more': len(vulnerabilities) > 20
         }
     except FileNotFoundError:
-        return {'scanner': 'trivy', 'error': f'File not found: {filepath}'}
+        return {
+            'scanner': 'trivy',
+            'scan_type': 'container/filesystem',
+            'total_vulnerabilities': 0,
+            'summary': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'unknown': 0},
+            'vulnerabilities': [],
+            'has_more': False,
+            'error': f'File not found: {filepath}'
+        }
     except json.JSONDecodeError as e:
-        return {'scanner': 'trivy', 'error': f'Invalid JSON: {str(e)}'}
+        return {
+            'scanner': 'trivy',
+            'scan_type': 'container/filesystem',
+            'total_vulnerabilities': 0,
+            'summary': {'critical': 0, 'high': 0, 'medium': 0, 'low': 0, 'unknown': 0},
+            'vulnerabilities': [],
+            'has_more': False,
+            'error': f'Invalid JSON: {str(e)}'
+        }
 
 
 def parse_bandit_results(filepath: str) -> Dict[str, Any]:
@@ -118,9 +133,27 @@ def parse_bandit_results(filepath: str) -> Dict[str, Any]:
             'has_more': len(issues) > 20
         }
     except FileNotFoundError:
-        return {'scanner': 'bandit', 'error': f'File not found: {filepath}'}
+        return {
+            'scanner': 'bandit',
+            'scan_type': 'python_security',
+            'total_issues': 0,
+            'summary': {'high': 0, 'medium': 0, 'low': 0},
+            'metrics': {'loc': 0, 'nosec': 0},
+            'issues': [],
+            'has_more': False,
+            'error': f'File not found: {filepath}'
+        }
     except json.JSONDecodeError as e:
-        return {'scanner': 'bandit', 'error': f'Invalid JSON: {str(e)}'}
+        return {
+            'scanner': 'bandit',
+            'scan_type': 'python_security',
+            'total_issues': 0,
+            'summary': {'high': 0, 'medium': 0, 'low': 0},
+            'metrics': {'loc': 0, 'nosec': 0},
+            'issues': [],
+            'has_more': False,
+            'error': f'Invalid JSON: {str(e)}'
+        }
 
 
 def parse_npm_audit_results(filepath: str) -> Dict[str, Any]:
@@ -208,9 +241,25 @@ def parse_npm_audit_results(filepath: str) -> Dict[str, Any]:
             }
             
     except FileNotFoundError:
-        return {'scanner': 'npm_audit', 'error': f'File not found: {filepath}'}
+        return {
+            'scanner': 'npm_audit',
+            'scan_type': 'npm_dependencies',
+            'total_vulnerabilities': 0,
+            'summary': {'critical': 0, 'high': 0, 'moderate': 0, 'low': 0},
+            'vulnerabilities': [],
+            'has_more': False,
+            'error': f'File not found: {filepath}'
+        }
     except json.JSONDecodeError as e:
-        return {'scanner': 'npm_audit', 'error': f'Invalid JSON: {str(e)}'}
+        return {
+            'scanner': 'npm_audit',
+            'scan_type': 'npm_dependencies',
+            'total_vulnerabilities': 0,
+            'summary': {'critical': 0, 'high': 0, 'moderate': 0, 'low': 0},
+            'vulnerabilities': [],
+            'has_more': False,
+            'error': f'Invalid JSON: {str(e)}'
+        }
 
 
 def send_to_taskade(payload: Dict[str, Any]) -> bool:

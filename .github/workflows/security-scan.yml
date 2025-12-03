@@ -24,7 +24,7 @@ on:
           - trivy
 
 env:
-  TASKADE_WEBHOOK: https://www.taskade.com/webhooks/01KAZEPCKA9B3QG8CJ4XF6J69S
+  TASKADE_WEBHOOK: ${{ secrets.TASKADE_WEBHOOK_URL }}
 
 jobs:
   npm-audit:
@@ -58,11 +58,12 @@ jobs:
           path: npm-audit.json
           retention-days: 30
 
+      - name: Install Python dependencies
+        run: pip3 install requests
+
       - name: Send results to Taskade
         if: always()
-        run: |
-          pip3 install requests
-          python3 scripts/taskade-security-sync.py parse --type npm --file npm-audit.json
+        run: python3 scripts/taskade-security-sync.py parse --type npm --file npm-audit.json
 
   python-security:
     name: Python Security (Bandit)
@@ -99,11 +100,12 @@ jobs:
           path: bandit-report.json
           retention-days: 30
 
+      - name: Install Python dependencies
+        run: pip3 install requests
+
       - name: Send results to Taskade
         if: always()
-        run: |
-          pip3 install requests
-          python3 scripts/taskade-security-sync.py parse --type bandit --file bandit-report.json
+        run: python3 scripts/taskade-security-sync.py parse --type bandit --file bandit-report.json
 
   trivy-scan:
     name: Trivy Vulnerability Scan
@@ -115,7 +117,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -131,11 +133,12 @@ jobs:
           path: trivy-results.json
           retention-days: 30
 
+      - name: Install Python dependencies
+        run: pip3 install requests
+
       - name: Send results to Taskade
         if: always()
-        run: |
-          pip3 install requests
-          python3 scripts/taskade-security-sync.py parse --type trivy --file trivy-results.json
+        run: python3 scripts/taskade-security-sync.py parse --type trivy --file trivy-results.json
 
   security-summary:
     name: Security Summary & Taskade Sync

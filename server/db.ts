@@ -18,8 +18,10 @@ import * as schema from "@shared/schema";
  */
 
 const USE_LOCAL_POSTGRES = process.env.USE_LOCAL_POSTGRES === 'true';
-const DATABASE_URL = process.env.DATABASE_URL || 
-  (USE_LOCAL_POSTGRES ? 'postgresql://postgres:postgres@localhost:5432/pinksync_db' : '');
+const DATABASE_URL = process.env.DATABASE_URL ||
+  ((process.env.NODE_ENV === 'development' && USE_LOCAL_POSTGRES)
+    ? 'postgresql://postgres:postgres@localhost:5432/pinksync_db'
+    : '');
 
 if (!DATABASE_URL) {
   throw new Error(
@@ -39,13 +41,13 @@ let db: ReturnType<typeof drizzleNeon> | ReturnType<typeof drizzlePg>;
 if (USE_LOCAL_POSTGRES || (!isNeonUrl && !isSupabaseUrl)) {
   // Use standard node-postgres for local development
   // Works with: WSL, PowerShell, Ubuntu, Docker, Supabase local
-  console.log('📦 Using local PostgreSQL connection');
+  console.log('[INFO] Using local PostgreSQL connection');
   const pgPool = new pg.Pool({ connectionString: DATABASE_URL });
   pool = pgPool;
   db = drizzlePg({ client: pgPool, schema });
 } else {
   // Use Neon serverless for cloud deployment
-  console.log('☁️ Using Neon serverless connection');
+  console.log('[INFO] Using Neon serverless connection');
   neonConfig.webSocketConstructor = ws;
   const neonPool = new Pool({ connectionString: DATABASE_URL });
   pool = neonPool;

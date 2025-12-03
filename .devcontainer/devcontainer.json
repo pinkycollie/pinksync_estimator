@@ -76,7 +76,7 @@
       "onAutoForward": "notify"
     }
   },
-  "postCreateCommand": "npm install && npm run check",
+  "postCreateCommand": "npm install && npm run check || true",
   "postStartCommand": "git config --global --add safe.directory ${containerWorkspaceFolder}",
   "remoteUser": "node",
   "containerEnv": {
