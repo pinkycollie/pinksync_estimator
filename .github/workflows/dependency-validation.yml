@@ -23,6 +23,10 @@ on:
     - cron: '0 9 * * 1'
   workflow_dispatch:
 
+# Restrict permissions for security
+permissions:
+  contents: read
+
 jobs:
   validate-npm:
     name: Validate npm Dependencies
