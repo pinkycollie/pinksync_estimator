@@ -43,10 +43,9 @@
 
 ## Phase 5: PinkSync API Gateway (In Progress)
 - ✅ Implement PinkSync as central API gateway for orchestration (`ARCHITECTURE.md`)
-- ✅ Implement SignYapse API integration for ASL translation (`server/utils/signYapseIntegration.ts`)
-- ✅ Create document translation to ASL support
 - ✅ Add accessibility features in deployment history schema
 - ✅ Implement DeafAuth checks for API routing latency (`pinksync_estimator.py`)
+- ⬜ Define accessibility endpoints list (tools, tasks, services)
 - ⬜ Develop visual communication tools
 - ⬜ Create visual-centric UI components
 - ⬜ Build visual alert system
