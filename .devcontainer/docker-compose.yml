@@ -7,10 +7,12 @@ services:
       dockerfile: .devcontainer/Dockerfile
     volumes:
       - ..:/workspace:cached
+    # For VS Code Dev Containers: keeps container running for interactive use
+    # Run "npm run dev" manually in the VS Code terminal after connecting
     command: sleep infinity
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://postgres:postgres@localhost:5432/aiostool
       - ASTRA_DB_TOKEN=${ASTRA_DB_TOKEN}
       - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -26,6 +28,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
       POSTGRES_DB: aiostool
+    ports:
+      - "5432:5432"
 
 volumes:
   postgres-data:
