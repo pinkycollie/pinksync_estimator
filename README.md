@@ -97,3 +97,5 @@ This project is licensed under the MIT License - see the package.json file for d
 - [Architecture Overview](ARCHITECTURE.md)
 - [Feature Specification](FEATURE_SPECIFICATION.md)
 - [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md)
+- [Local Setup Guide](LOCAL_SETUP.md) - Moving from Replit to local development
+- [Replit Agent Instructions](REPLIT_AGENT.md) - Context for Replit Agent
