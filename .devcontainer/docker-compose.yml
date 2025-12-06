@@ -12,7 +12,7 @@ services:
     command: sleep infinity
     environment:
       - NODE_ENV=development
-      - DATABASE_URL=postgresql://postgres:postgres@localhost:5432/aiostool
+      - DATABASE_URL=postgresql://postgres:postgres@localhost:5432/pinksync_db
       - ASTRA_DB_TOKEN=${ASTRA_DB_TOKEN}
       - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -27,7 +27,7 @@ services:
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
-      POSTGRES_DB: aiostool
+      POSTGRES_DB: pinksync_db
     ports:
       - "5432:5432"
 
