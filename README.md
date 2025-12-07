@@ -1,128 +1,89 @@
-# Pinksync Estimator (Archived)
+# PinkSync Estimator - AI OS Platform
 
-> ⚠️ **This repository is archived.** It represents early prototype work and is preserved for historical reference.
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![AI Powered](https://img.shields.io/badge/AI%20Powered-OpenAI%20%7C%20HuggingFace-FF6F00?logo=openai&logoColor=white)](https://openai.com/)
+[![Accessibility](https://img.shields.io/badge/Accessibility-Deaf%20Community%20Focused-0077B5?logo=accessibility&logoColor=white)](FEATURE_SPECIFICATION.md)
+[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen?logo=github)](CONTRIBUTING.md)
 
-## About this project
+An AI-powered productivity platform for multi-platform file synchronization, document management, and workflow automation. This project includes accessible features designed with the deaf community in mind.
 
-This was one of my first real projects. At the time I was a student working in Replit and learning by doing — I wasn't yet familiar with many of the tooling and workflows people commonly use today (for example, GitHub Actions, project generators, and CI/CD pipelines). I learned how to look for tools and figure things out as I went, and Replit taught me a lot about rapid iteration, prototyping, and shipping simple apps quickly.
+## About This Project
 
-This repository captures that early learning stage: there are experiments, rough edges, and decisions made while I was still discovering better ways to structure and automate development. Over time I learned about more robust workflows (adding automated tests and CI, using generators to scaffold projects, and moving development to a local environment), and those lessons shaped how I work now.
+This started as an early learning project built on Replit. It has since evolved into a more structured codebase suitable for community contributions. While some rough edges remain from the learning stage, the project demonstrates:
 
-## What this project contains
+- Multi-platform file synchronization (Ubuntu, Windows, iOS, Dropbox, Google Drive)
+- AI-powered document categorization and analysis
+- Workflow automation for document processing
+- Accessibility-focused features for visual-centric workflows
 
-### Original Prototype (Replit-based)
-
-The main prototype is an AI-powered productivity platform with:
-
-- **Multi-platform file synchronization** (Ubuntu, Windows, iOS, Dropbox, Google Drive)
-- **AI-powered file organization** with automatic categorization
-- **Task automation workflows**
-- **Deaf-centric accessibility features** (visual cues, high contrast, simplified language)
-- **Business intelligence tools** for entrepreneurs
-
-### Tools Directory
-
-A standalone CLI utility extracted from the prototype:
-
-#### File Analyzer (`tools/file-analyzer.ts`)
-
-A command-line tool for analyzing and categorizing files, featuring:
-- Automatic file categorization (document, code, image, video, etc.)
-- Visual indicators (emoji) for accessibility
-- JSON output for integration with other tools
-- Recursive directory scanning
-
-```bash
-# Usage
-npx tsx tools/file-analyzer.ts <file-or-directory> [options]
-
-# Examples
-npx tsx tools/file-analyzer.ts ./src
-npx tsx tools/file-analyzer.ts ./project --json
-npx tsx tools/file-analyzer.ts ./src --summary
-```
-
-## Project Structure
-
-```
-├── client/               # React frontend (prototype UI)
-├── server/               # Express backend with various utilities
-│   ├── api/             # API routes
-│   ├── routes/          # Additional route handlers
-│   ├── storage/         # Storage implementations
-│   └── utils/           # Utility modules (AI, pipelines, etc.)
-├── shared/              # Shared TypeScript types and schemas
-├── tools/               # Standalone CLI tools (post-archive additions)
-│   ├── file-analyzer.ts      # File analysis CLI tool
-│   └── file-analyzer.test.ts # Tests for the tool
-└── docs/                # Documentation files
-    ├── ARCHITECTURE.md
-    ├── FEATURE_SPECIFICATION.md
-    ├── TECHNICAL_REPORT.md
-    └── ...
-```
-
-## Key Documentation
-
-- [Architecture Overview](./ARCHITECTURE.md) - System design and components
-- [Feature Specification](./FEATURE_SPECIFICATION.md) - Detailed feature requirements
-- [Technical Report](./TECHNICAL_REPORT.md) - Technical implementation details
-- [Database Schema](./DATABASE_SCHEMA.md) - Data model documentation
-
-## Running the Tools
+## Getting Started
 
 ### Prerequisites
 
-- Node.js 18 or higher
-- npm or pnpm
+- Node.js 20+
+- PostgreSQL 16+
+- Python 3.11+ (for AI analysis scripts)
 
-### Install dependencies
+### Installation
 
-```bash
-npm install --legacy-peer-deps
-```
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/pinkycollie/pinksync_estimator.git
+   cd pinksync_estimator
+   ```
 
-### Run the File Analyzer
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-```bash
-npx tsx tools/file-analyzer.ts --help
-npx tsx tools/file-analyzer.ts ./some-directory
-```
+3. Set up environment variables (see `.env.example` for required variables)
 
-### Run Tests
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
 
-```bash
-npx tsx tools/file-analyzer.test.ts
-```
+## Project Structure
 
-## Accessibility Features
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed architecture documentation.
 
-This project was designed with deaf communities in mind:
+- `client/` - React frontend application
+- `server/` - Express.js backend API
+- `shared/` - Shared TypeScript types and schemas
 
-- **Visual indicators**: Emoji and icons replace audio cues
-- **High contrast**: Support for high contrast UI modes
-- **Simplified language**: Technical concepts explained clearly
-- **Visual feedback**: All status updates are visual, not auditory
+## Configuration
 
-## Lessons Learned
+This project requires several environment variables for full functionality. See `.env.example` for a template. **Never commit actual API keys or secrets to the repository.**
 
-Building this prototype taught me:
+### Required Environment Variables
 
-1. **Start simple**: Complex architectures are hard to maintain in early stages
-2. **Test early**: Adding tests later is much harder
-3. **Document as you go**: Future-you will thank present-you
-4. **Use established tools**: Don't reinvent wheels
-5. **Accessibility matters**: Design for all users from the start
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `HUGGINGFACE_API_KEY` | HuggingFace API key for embeddings | Optional |
+| `OPENAI_API_KEY` | OpenAI API key for AI features | Optional |
+
+## Contributing
+
+Contributions are welcome! Please read the contributing guidelines before submitting pull requests.
+
+## Security
+
+Please see [SECURITY.md](SECURITY.md) for security policies and how to report vulnerabilities.
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the package.json file for details.
 
-## Archive Notice
+## Documentation
 
-This repository is archived and no longer actively maintained. The code is preserved for:
-- Historical reference
-- Learning purposes
-- Code archaeology
-
-Feel free to explore, learn from, or fork this project for your own experiments!
+- [API Specification](API_SPECIFICATION.md)
+- [Database Schema](DATABASE_SCHEMA.md)
+- [Architecture Overview](ARCHITECTURE.md)
+- [Feature Specification](FEATURE_SPECIFICATION.md)
+- [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md)

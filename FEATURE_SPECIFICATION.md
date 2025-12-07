@@ -1,7 +1,7 @@
-# Pinky's AI OS - Feature Specification
+# PinkSync Estimator - Feature Specification
 
 ## Overview
-Pinky's AI OS is an intelligent AI-powered productivity platform designed for file management, task automation, and personal assistance across multiple platforms. It specifically serves entrepreneurs with deaf-centric features.
+PinkSync Estimator is an intelligent AI-powered productivity platform designed for file management, task automation, and personal assistance across multiple platforms. It includes accessibility features designed with the deaf community in mind.
 
 ## Core Features
 
