@@ -10,7 +10,7 @@
  * Repository: github.com/pinkycollie/pinkflow
  */
 
-import fetch from 'node-fetch';
+// Using global fetch (built-in in Node.js 18+)
 
 export interface TestContainerConfig {
   apiUrl: string;

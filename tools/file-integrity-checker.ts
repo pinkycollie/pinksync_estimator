@@ -37,9 +37,16 @@ export class FileIntegrityChecker {
       // Use 'file' command to detect actual file type
       let actualType = 'unknown';
       try {
-        actualType = execSync(`file -b --mime-type "${filePath}"`, { encoding: 'utf-8' }).trim();
-      } catch (e) {
-        console.warn(`Could not determine file type for ${filePath}`);
+        // Validate file path to prevent command injection
+        if (!filePath || filePath.includes(';') || filePath.includes('|') || filePath.includes('&')) {
+          throw new Error('Invalid file path');
+        }
+        
+        // Use Node.js file reading instead of shell command for security
+        const buffer = fs.readFileSync(filePath);
+        actualType = this.detectMimeType(buffer, ext);
+      } catch (error) {
+        console.warn(`Could not determine file type for ${filePath}:`, error instanceof Error ? error.message : String(error));
       }
 
       const isValid = this.validateFileType(ext, actualType);
@@ -64,6 +71,42 @@ export class FileIntegrityChecker {
         error: error instanceof Error ? error.message : String(error)
       };
     }
+  }
+
+  /**
+   * Detect MIME type from buffer content (safer than shell command)
+   */
+  private static detectMimeType(buffer: Buffer, ext: string): string {
+    // Check for common file signatures
+    if (buffer.length === 0) {
+      return 'application/x-empty';
+    }
+
+    // Check for binary video/audio signatures
+    const header = buffer.slice(0, 12).toString('hex');
+    
+    // MPEG signatures
+    if (header.startsWith('000001b')) {
+      return 'video/mpeg';
+    }
+    if (header.startsWith('fffb') || header.startsWith('fff3') || header.startsWith('fff2')) {
+      return 'audio/mpeg';
+    }
+    // MP4 signature
+    if (header.includes('6674797069736f6d')) {
+      return 'video/mp4';
+    }
+    
+    // Check if it's text-based
+    const textSample = buffer.slice(0, Math.min(1024, buffer.length)).toString('utf8');
+    if (/^[\x20-\x7E\s\n\r\t]*$/.test(textSample)) {
+      // It's text content
+      if (ext === '.json') return 'application/json';
+      if (ext === '.js' || ext === '.jsx') return 'application/javascript';
+      return 'text/plain';
+    }
+
+    return 'application/octet-stream';
   }
 
   /**

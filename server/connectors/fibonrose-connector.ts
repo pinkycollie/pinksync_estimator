@@ -13,7 +13,7 @@
  * Repository: github.com/pinkycollie/fibonrose
  */
 
-import fetch from 'node-fetch';
+// Using global fetch (built-in in Node.js 18+)
 
 export interface FibonRoseConfig {
   apiUrl: string;
