@@ -1,5 +1,7 @@
 # PinkSync Estimator - AI OS Platform
 
+> **🔧 Template Repository**: This is a template repository for internal use. Automated deployment has been disabled to allow each client project to configure deployment according to their specific requirements. See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment options.
+
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
@@ -21,6 +23,8 @@ This started as an early learning project built on Replit. It has since evolved 
 - Accessibility-focused features for visual-centric workflows
 
 ## Getting Started
+
+> **Note**: Before deploying, review [DEPLOYMENT.md](DEPLOYMENT.md) for deployment configuration options.
 
 ### Prerequisites
 
@@ -82,6 +86,7 @@ This project is licensed under the MIT License - see the package.json file for d
 
 ## Documentation
 
+- [Deployment Guide](DEPLOYMENT.md) - **Start here for deployment configuration**
 - [API Specification](API_SPECIFICATION.md)
 - [Database Schema](DATABASE_SCHEMA.md)
 - [Architecture Overview](ARCHITECTURE.md)

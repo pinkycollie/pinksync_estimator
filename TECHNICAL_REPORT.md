@@ -1,14 +1,14 @@
 # Technical Report: AI OS Platform
 
-[![Built with Replit](https://img.shields.io/badge/Built_with-Replit-9668E2.svg)](https://replit.com)
-
-
+> **Template Repository**: This is a template for client projects. Deployment configurations should be customized per project. See [DEPLOYMENT.md](DEPLOYMENT.md) for details.
 
 [![Built with Replit](https://img.shields.io/badge/Built_with-Replit-9668E2.svg)](https://replit.com)
 
 ## Executive Summary
 
 This report documents the architecture, implementation details, and deployment strategy for the AI OS Platform - a multi-platform synchronization and AI-powered productivity system. The platform seamlessly integrates file systems across multiple devices (Windows, Ubuntu, iOS, Dropbox, Google Drive), processes unstructured data using AI services, and provides automation capabilities for enhanced productivity.
+
+**Note**: This template provides a foundation. Deployment strategy should be configured according to each client's specific requirements.
 
 ## System Architecture
 
@@ -171,47 +171,29 @@ For Windows-based development, the project uses Microsoft Dev Containers with:
 
 ## Deployment Strategy
 
-### Vercel Deployment
+> **Important**: As a template repository, specific deployment configuration has been intentionally left flexible. Choose and configure deployment according to client requirements. See [DEPLOYMENT.md](DEPLOYMENT.md) for available options.
 
-The primary deployment target is Vercel, using:
+### Deployment Options
 
-1. **Serverless Functions** for API endpoints
-2. **Static Site Generation** for the frontend
-3. **Environment Variables** for configuration
-4. **Edge Functions** for global distribution
+This template supports multiple deployment strategies:
 
-The `vercel.json` configuration handles routing and build settings:
+1. **Vercel** - Serverless deployment with automatic CI/CD
+2. **Replit** - Quick deployment for prototyping
+3. **Docker** - Containerized deployment for any platform
+4. **Traditional VPS** - Self-hosted on Ubuntu/Debian servers
+5. **Cloud Platforms** - AWS, Azure, GCP
 
-```json
-{
-  "version": 2,
-  "buildCommand": "npm run build",
-  "outputDirectory": "client/dist",
-  "installCommand": "npm install",
-  "builds": [
-    {
-      "src": "client/package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
-    },
-    {
-      "src": "server/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    { "src": "/api/(.*)", "dest": "server/index.ts" },
-    { "src": "/(.*)", "dest": "client/dist/$1" }
-  ]
-}
-```
+The included `vercel.json` provides a starting point for Vercel deployment but should be customized or replaced based on your chosen platform.
 
 ### Database Strategy
 
-For production deployment, the project uses:
+For production deployment, configure a PostgreSQL database:
 
-1. **Vercel Postgres** for relational data
-2. **Vector Extensions** for similarity search
+1. **Managed Services** (Recommended):
+   - Neon, Supabase, AWS RDS, Azure Database, or Google Cloud SQL
+2. **Self-Hosted** - PostgreSQL 16+ with vector extensions for similarity search
+
+Refer to [DEPLOYMENT.md](DEPLOYMENT.md) for detailed setup instructions for each platform.
 
 ## Cross-Environment Integration
 
@@ -230,9 +212,10 @@ The workflow for transitioning between Replit and Windows environments:
    - Open in VS Code with Remote Containers
    - Development continues with identical environment
 
-4. **Deployment to Vercel**
-   - Push to GitHub repository
-   - Connect to Vercel for automatic deployment
+4. **Configure Deployment**
+   - Choose deployment platform based on client requirements
+   - Configure according to [DEPLOYMENT.md](DEPLOYMENT.md)
+   - Set up CI/CD as needed
 
 ## Security Considerations
 
@@ -280,4 +263,4 @@ The workflow for transitioning between Replit and Windows environments:
 
 The AI OS Platform represents a sophisticated integration of modern technologies to create a seamless productivity environment across multiple platforms. By leveraging containerization, cloud services, and AI capabilities, the system provides a consistent user experience regardless of the underlying platform.
 
-The combination of Replit for rapid development, Windows Dev Containers for local work, and Vercel for deployment creates a flexible and powerful development workflow that accommodates diverse development environments while maintaining consistency in the production environment.
+As a template repository, it provides a flexible foundation for client projects. The combination of Replit for rapid development, Windows Dev Containers for local work, and flexible deployment options creates a powerful development workflow that accommodates diverse requirements while maintaining consistency across environments. Configure deployment according to each client's specific needs using the guidance in [DEPLOYMENT.md](DEPLOYMENT.md).
