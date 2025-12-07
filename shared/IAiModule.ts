@@ -2,6 +2,19 @@
  * AI Module Interface
  * Base interface for AI-powered modules in the system
  */
+
+export interface ModuleInput {
+  [key: string]: any;
+}
+
+export interface ModuleOutput {
+  [key: string]: any;
+}
+
+export interface OperationParams {
+  [key: string]: any;
+}
+
 export interface IAiModule {
   id: string;
   name: string;
@@ -21,10 +34,10 @@ export interface IAiModule {
   /**
    * Analyze input data
    */
-  analyze(input: any): Promise<any>;
+  analyze(input: ModuleInput): Promise<ModuleOutput>;
   
   /**
    * Handle module-specific operations
    */
-  handle(operation: string, params: any): Promise<any>;
+  handle(operation: string, params: OperationParams): Promise<ModuleOutput>;
 }
