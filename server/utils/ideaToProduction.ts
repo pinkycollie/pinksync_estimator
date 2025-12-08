@@ -871,29 +871,27 @@ Created with ❤️ for accessibility
 
 ## 📊 Git Workflow Visualization
 
-```
-Local Repo                        Remote Repo (${platform})
-+-------------+                  +------------------+
-| Work Area   |                  |                  |
-| (Editing)   |                  |                  |
-+-------------+                  |                  |
-       ↓                         |                  |
-+-------------+  git add .       |                  |
-| Staging     |----------------->|                  |
-| Area        |                  |                  |
-+-------------+                  |                  |
-       ↓                         |                  |
-+-------------+  git commit -m   |                  |
-| Local       |----------------->|                  |
-| History     |                  |                  |
-+-------------+                  |                  |
-       ↓                         |                  |
-+-------------+  git push        |  +-----------+   |
-| Local       |----------------->|  | Remote    |   |
-| Repository  |                  |  | Repository|   |
-+-------------+                  |  +-----------+   |
-                                 +------------------+
-```
+    Local Repo                        Remote Repo (\${platform})
+    +-------------+                  +------------------+
+    | Work Area   |                  |                  |
+    | (Editing)   |                  |                  |
+    +-------------+                  |                  |
+           ↓                         |                  |
+    +-------------+  git add .       |                  |
+    | Staging     |----------------->|                  |
+    | Area        |                  |                  |
+    +-------------+                  |                  |
+           ↓                         |                  |
+    +-------------+  git commit -m   |                  |
+    | Local       |----------------->|                  |
+    | History     |                  |                  |
+    +-------------+                  |                  |
+           ↓                         |                  |
+    +-------------+  git push        |  +-----------+   |
+    | Local       |----------------->|  | Remote    |   |
+    | Repository  |                  |  | Repository|   |
+    +-------------+                  |  +-----------+   |
+                                     +------------------+
 
 ## 🎬 Common Git Commands
 
@@ -1037,7 +1035,7 @@ Thumbs.db
 
 ## 🖥️ Replit Interface Overview
 
-```
+    
 +--------------------------------------------------------+
 |  +----------------+  +-------------------------------+  |
 |  | Files          |  | Code Editor                   |  |
@@ -1056,7 +1054,7 @@ Thumbs.db
 |  | ✅ Compiled successfully!                             |
 |  +--------------------------------------------------------+
 +--------------------------------------------------------+
-```
+
 
 ## 🔄 Workflow Steps
 
@@ -1112,7 +1110,7 @@ Thumbs.db
 
 ## 🧠 Cursor AI Interface Overview
 
-```
+    
 +--------------------------------------------------------+
 |  +----------------+  +-------------------------------+  |
 |  | Files          |  | Code Editor                   |  |
@@ -1129,7 +1127,7 @@ Thumbs.db
 |  +----------------+  |                                  |
 |                      |                                  |
 +--------------------------------------------------------+
-```
+
 
 ## 🔮 Using AI Assistance
 
@@ -1186,7 +1184,7 @@ Thumbs.db
 
 ## 🌐 Netlify Deployment Flow
 
-```
+    
  Local Project                    Netlify Platform
 +---------------+  git push     +-------------------+
 | Your Code     |-------------->| GitHub/GitLab     |
@@ -1209,7 +1207,7 @@ Thumbs.db
 +---------------+               +-------------------+
 | Production    |<--------------| Production Deploy |
 +---------------+               +-------------------+
-```
+
 
 ## 🚀 Deployment Steps
 
@@ -1271,7 +1269,7 @@ Thumbs.db
 
 ## 🔄 CI/CD Pipeline Visualization
 
-```
+    
                       +----------------+
                       | Code Changes   |
                       +----------------+
@@ -1299,7 +1297,7 @@ Thumbs.db
                       | Monitor        |
                       | Application    |
                       +----------------+
-```
+
 
 ## 🚦 Status Indicators
 
@@ -1344,7 +1342,7 @@ Thumbs.db
 
 ## 🔍 Monitoring Dashboard
 
-```
+    
 +---------------------------------------------------------+
 | Deployment Status                                       |
 +---------------------------------------------------------+
@@ -1354,7 +1352,7 @@ Thumbs.db
 | Staging     | 🟢 Up  | 30 mins ago   | ✅ Pass | ✅ Pass |
 | Development | 🟢 Up  | 5 mins ago    | ✅ Pass | ✅ Pass |
 +---------------------------------------------------------+
-```
+
 
 ## 🚨 Troubleshooting Common Issues
 
