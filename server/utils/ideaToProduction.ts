@@ -281,15 +281,15 @@ Format as JSON:
   }
 
   /**
-   * Set up Cursor AI integration for a project
+   * Set up VS Code integration for a project
    * @param projectId Project ID
-   * @returns Information about the Cursor AI setup
+   * @returns Information about the VS Code setup
    */
-  public static async setupCursorAI(
+  public static async setupVSCode(
     projectId: number
   ): Promise<{
     success: boolean;
-    prompts: string[];
+    extensions: string[];
     settings: any;
     visualGuide: string;
   }> {
@@ -300,34 +300,35 @@ Format as JSON:
         throw new Error(`Project not found: ${projectId}`);
       }
 
-      // Create Cursor AI configuration
-      const cursorSettings = {
-        "cursor.promptDirectory": "./prompts",
-        "cursor.accessibilityMode": true,
-        "cursor.visualFeedback": true,
-        "cursor.highContrast": project.metadata?.accessibilityOptions?.highContrast || false,
-        "cursor.simplifiedLanguage": project.metadata?.accessibilityOptions?.simplifiedLanguage || false
+      // Create VS Code configuration
+      const vscodeSettings = {
+        "editor.accessibilitySupport": "on",
+        "editor.renderWhitespace": "all",
+        "editor.fontSize": 14,
+        "workbench.colorTheme": project.metadata?.accessibilityOptions?.highContrast ? "Default High Contrast" : "Default Dark+",
+        "terminal.integrated.fontSize": 14,
+        "accessibility.signals.lineHasError": { "sound": "off" },
+        "accessibility.signals.lineHasWarning": { "sound": "off" }
       };
 
-      // Create default prompts for Cursor AI
-      const prompts = [
-        "Generate accessible code comment",
-        "Create visual explanation of this code",
-        "Simplify this technical implementation",
-        "Add accessibility features to this component",
-        "Create visual workflow diagram"
+      // Recommended extensions for accessibility
+      const extensions = [
+        "ms-vscode.vscode-typescript-next",
+        "esbenp.prettier-vscode",
+        "dbaeumer.vscode-eslint",
+        "eamodio.gitlens"
       ];
 
-      // Generate a visual guide for Cursor AI
-      const visualGuide = await this.generateCursorAIVisualGuide();
+      // Generate a visual guide for VS Code
+      const visualGuide = this.generateVSCodeVisualGuide();
 
       // Update project metadata
       await storage.updateProject(projectId, {
         metadata: {
           ...project.metadata,
-          cursorAI: {
-            settings: cursorSettings,
-            prompts,
+          vscode: {
+            settings: vscodeSettings,
+            extensions,
             setupAt: new Date().toISOString(),
             visualGuide
           }
@@ -336,13 +337,13 @@ Format as JSON:
 
       return {
         success: true,
-        prompts,
-        settings: cursorSettings,
+        extensions,
+        settings: vscodeSettings,
         visualGuide
       };
     } catch (error) {
-      console.error('Error setting up Cursor AI:', error);
-      throw new Error(`Failed to set up Cursor AI: ${error.message}`);
+      console.error('Error setting up VS Code:', error);
+      throw new Error(`Failed to set up VS Code: ${error.message}`);
     }
   }
 
@@ -725,7 +726,7 @@ ${files.map(f => `- ${f.name}`).join('\n')}
 1. Idea Capture
 2. Project Setup
 3. Development on Replit
-4. Code Enhancement with Cursor AI
+4. Code Development with VS Code and Local Terminal
 5. Testing
 6. Deployment to Netlify
 7. Monitoring
@@ -742,7 +743,7 @@ Report generated on ${new Date().toLocaleString()}
 ✅ Project initialized
 ${project.metadata?.repository ? '✅' : '❌'} Git repository
 ${project.metadata?.replit ? '✅' : '❌'} Replit setup
-${project.metadata?.cursorAI ? '✅' : '❌'} Cursor AI integration
+${project.metadata?.vscode ? '✅' : '❌'} VS Code integration
 ${project.metadata?.netlify ? '✅' : '❌'} Netlify configuration
 ${project.metadata?.cicd ? '✅' : '❌'} CI/CD pipeline
 ${deployments.length > 0 ? '✅' : '❌'} Deployments`;
@@ -1105,76 +1106,119 @@ Thumbs.db
   }
 
   /**
-   * Generate a visual guide for Cursor AI
+   * Generate a visual guide for VS Code and Local Terminal
    */
-  private static generateCursorAIVisualGuide(): string {
-    return `# Visual Cursor AI Guide
+  private static generateVSCodeVisualGuide(): string {
+    return `# Visual VS Code and Local Terminal Guide
 
-## 🧠 Cursor AI Interface Overview
+## 🖥️ VS Code Interface Overview
 
 \`\`\`
 +--------------------------------------------------------+
 |  +----------------+  +-------------------------------+  |
 |  | Files          |  | Code Editor                   |  |
 |  | [📁] src       |  | function Example() {          |  |
-|  | [📁] prompts   |  |   // AI can help here         |  |
+|  | [📁] tests     |  |   // Your code here            |  |
 |  | [📄] README.md |  |   return (                    |  |
-|  +----------------+  |     <div>                     |  |
-|                      |       <h1>Component</h1>      |  |
-|  +----------------+  |     </div>                    |  |
-|  | AI Chat        |  |   );                          |  |
-|  | > Help me with |  | }                             |  |
-|  |   this code    |  |                               |  |
-|  | < Here's how...|  +-------------------------------+  |
-|  +----------------+  |                                  |
-|                      |                                  |
+|  | [📄] .gitignore|  |     <div>                     |  |
+|  +----------------+  |       <h1>Component</h1>      |  |
+|                      |     </div>                    |  |
+|  +----------------+  |   );                          |  |
+|  | Terminal       |  | }                             |  |
+|  | $ npm install  |  |                               |  |
+|  | $ npm test     |  +-------------------------------+  |
+|  +----------------+                                      |
 +--------------------------------------------------------+
 \`\`\`
 
-## 🔮 Using AI Assistance
+## 💻 Using Local Terminal
 
-1. **Get Code Suggestions**
-   - Type your code and wait for inline suggestions
-   - Press Tab to accept suggestions
-   - Visual indicator: 💡 Suggestion available
+1. **Open Integrated Terminal**
+   - Press Ctrl+\` (backtick) or View → Terminal
+   - Visual indicator: 📟 Terminal opens at bottom
 
-2. **Ask AI for Help**
-   - Highlight code and press Ctrl+K (or Cmd+K on Mac)
-   - Type your question in the AI chat panel
-   - Visual indicator: 🤖 AI is processing
+2. **Run Common Commands**
+   - Install dependencies: \`npm install\`
+   - Start dev server: \`npm run dev\`
+   - Run tests: \`npm test\`
+   - Build project: \`npm run build\`
+   - Visual indicator: 🔄 Command running
 
-3. **Use Custom Prompts**
-   - Open a prompt from the prompts directory
-   - Fill in the template variables
-   - Execute the prompt with Ctrl+Shift+L
-   - Visual indicator: 📝 Prompt executed
+3. **Navigate Directories**
+   - List files: \`ls\` (Mac/Linux) or \`dir\` (Windows)
+   - Change directory: \`cd folder-name\`
+   - Go up one level: \`cd ..\`
+   - Visual indicator: 📂 Current directory shown in prompt
 
-4. **Generate Code**
-   - Type a comment describing what you want
-   - Press Ctrl+Enter to generate code
-   - Visual indicator: ✨ Code generated
+4. **Git Commands**
+   - Check status: \`git status\`
+   - Stage changes: \`git add .\`
+   - Commit: \`git commit -m "message"\`
+   - Push: \`git push\`
+   - Visual indicator: 📤 Changes synchronized
 
-5. **Refactor Code**
-   - Highlight code and press Ctrl+Shift+R
-   - Describe how you want to refactor
-   - Visual indicator: 🔄 Code refactored
+5. **Clear Terminal**
+   - Clear screen: \`clear\` (Mac/Linux) or \`cls\` (Windows)
+   - Visual indicator: 🧹 Terminal cleared
 
-## 📚 Accessibility-Focused Prompts
+## 🔧 VS Code Features for Accessibility
 
-| Prompt Name | Purpose | How to Use |
-|-------------|---------|-----------|
-| AccessibleComponent | Generate accessible UI components | Select component code, run prompt |
-| VisualExplanation | Create visual explanation of code | Select code, run prompt |
-| SimplifyLanguage | Simplify technical language | Select text, run prompt |
-| AddVisualCues | Add visual indicators to code | Select code, run prompt |
-| AccessibilityAudit | Check for accessibility issues | Select component, run prompt |
+1. **Command Palette**
+   - Press Ctrl+Shift+P (or Cmd+Shift+P on Mac)
+   - Search for any command
+   - Visual indicator: 🔍 Command palette opens
+
+2. **File Navigation**
+   - Quick open file: Ctrl+P (or Cmd+P on Mac)
+   - Go to symbol: Ctrl+Shift+O
+   - Visual indicator: 📋 File list appears
+
+3. **Code Editing**
+   - Format document: Shift+Alt+F
+   - Comment/uncomment: Ctrl+/
+   - Duplicate line: Shift+Alt+Down
+   - Visual indicator: ✨ Code formatted
+
+4. **Search and Replace**
+   - Find: Ctrl+F
+   - Find and replace: Ctrl+H
+   - Search in all files: Ctrl+Shift+F
+   - Visual indicator: 🔎 Search panel opens
+
+5. **Split Editor**
+   - Split editor: Ctrl+\\
+   - Switch between editors: Ctrl+1, Ctrl+2
+   - Visual indicator: ⬌ Editor splits
+
+## 📦 Recommended Extensions
+
+| Extension | Purpose | Icon |
+|-----------|---------|------|
+| ESLint | Code quality | 🔍 |
+| Prettier | Code formatting | ✨ |
+| GitLens | Git visualization | 🔀 |
+| Live Server | Local dev server | 🌐 |
+| Path Intellisense | File path autocomplete | 📁 |
 
 ## 🎛️ Accessibility Settings
 
-- High contrast mode: Enabled in settings
-- Visual feedback: Cursor uses icons and colors instead of sounds
-- Simplified explanations: Technical concepts explained with visual examples
-- Keyboard-focused workflow: Minimal mouse interaction needed
+- High contrast themes: File → Preferences → Color Theme
+- Font size: File → Preferences → Settings → "Font Size"
+- Screen reader support: File → Preferences → Settings → "Accessibility"
+- Terminal font size: File → Preferences → Settings → "Terminal Font Size"
+- Visual indicators: All operations show visual feedback
+- Keyboard-focused workflow: All features accessible via keyboard shortcuts
+
+## 🔑 Essential Keyboard Shortcuts
+
+| Action | Windows/Linux | Mac | Visual |
+|--------|---------------|-----|--------|
+| Save file | Ctrl+S | Cmd+S | 💾 |
+| Open file | Ctrl+P | Cmd+P | 📂 |
+| Find | Ctrl+F | Cmd+F | 🔍 |
+| Terminal | Ctrl+\` | Ctrl+\` | 📟 |
+| Command Palette | Ctrl+Shift+P | Cmd+Shift+P | 🎯 |
+| New terminal | Ctrl+Shift+\` | Ctrl+Shift+\` | ➕ |
 `;
   }
 
