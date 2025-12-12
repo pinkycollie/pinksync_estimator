@@ -1,6 +1,89 @@
-# About this project
+# PinkSync Estimator - AI OS Platform
 
-This was oen of my first real project. At the time I was a student working in Replit and learning by doing — I wasn't yet familiar with many of the tooling and workflows people commonly use today (for example, GitHub Actions, project generators, and CI/CD pipelines). I learned how to look for tools and figure things out as I went, and Replit taught me a lot about rapid iteration, prototyping, and shipping simple apps quickly.
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![AI Powered](https://img.shields.io/badge/AI%20Powered-OpenAI%20%7C%20HuggingFace-FF6F00?logo=openai&logoColor=white)](https://openai.com/)
+[![Accessibility](https://img.shields.io/badge/Accessibility-Deaf%20Community%20Focused-0077B5?logo=accessibility&logoColor=white)](FEATURE_SPECIFICATION.md)
+[![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen?logo=github)](CONTRIBUTING.md)
 
-This repository captures that early learning stage: there are experiments, rough edges, and decisions made while I was still discovering better ways to structure and automate development. Over time I learned about more robust workflows (adding automated tests and CI, using generators to scaffold projects, and moving development to a local environment), and those lessons shaped how I work now.
-```
+An AI-powered productivity platform for multi-platform file synchronization, document management, and workflow automation. This project includes accessible features designed with the deaf community in mind.
+
+## About This Project
+
+This started as an early learning project built on Replit. It has since evolved into a more structured codebase suitable for community contributions. While some rough edges remain from the learning stage, the project demonstrates:
+
+- Multi-platform file synchronization (Ubuntu, Windows, iOS, Dropbox, Google Drive)
+- AI-powered document categorization and analysis
+- Workflow automation for document processing
+- Accessibility-focused features for visual-centric workflows
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 20+
+- PostgreSQL 16+
+- Python 3.11+ (for AI analysis scripts)
+
+### Installation
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/pinkycollie/pinksync_estimator.git
+   cd pinksync_estimator
+   ```
+
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+3. Set up environment variables (see `.env.example` for required variables)
+
+4. Start the development server:
+   ```bash
+   npm run dev
+   ```
+
+## Project Structure
+
+See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for detailed architecture documentation.
+
+- `client/` - React frontend application
+- `server/` - Express.js backend API
+- `shared/` - Shared TypeScript types and schemas
+
+## Configuration
+
+This project requires several environment variables for full functionality. See `.env.example` for a template. **Never commit actual API keys or secrets to the repository.**
+
+### Required Environment Variables
+
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `HUGGINGFACE_API_KEY` | HuggingFace API key for embeddings | Optional |
+| `OPENAI_API_KEY` | OpenAI API key for AI features | Optional |
+
+## Contributing
+
+Contributions are welcome! Please read the contributing guidelines before submitting pull requests.
+
+## Security
+
+Please see [SECURITY.md](SECURITY.md) for security policies and how to report vulnerabilities.
+
+## License
+
+This project is licensed under the MIT License - see the package.json file for details.
+
+## Documentation
+
+- [API Specification](API_SPECIFICATION.md)
+- [Database Schema](DATABASE_SCHEMA.md)
+- [Architecture Overview](ARCHITECTURE.md)
+- [Feature Specification](FEATURE_SPECIFICATION.md)
+- [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md)
