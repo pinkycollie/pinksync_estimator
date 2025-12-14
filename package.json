@@ -15,7 +15,7 @@
     "integrity:report": "tsx tools/file-integrity-checker.ts scan > file-integrity-report.md && cat file-integrity-report.md"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.37.0",
+    "@anthropic-ai/sdk": "^0.71.2",
     "@astrajs/collections": "^0.3.4",
     "@datastax/astra-db-ts": "^1.5.0",
     "@hookform/resolvers": "^3.9.1",
