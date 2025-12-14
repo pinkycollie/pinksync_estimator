@@ -72,7 +72,7 @@
     "glob": "^13.0.0",
     "input-otp": "^1.4.2",
     "isomorphic-fetch": "^3.0.0",
-    "lucide-react": "^0.484.0",
+    "lucide-react": "^0.556.0",
     "memorystore": "^1.6.7",
     "multer": "^2.0.2",
     "node-fetch": "^2.7.0",
