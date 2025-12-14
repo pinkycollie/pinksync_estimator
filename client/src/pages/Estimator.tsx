@@ -58,12 +58,14 @@ export default function Estimator() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button asChild className="w-full">
-                <a href="/index.html" target="_blank" rel="noopener noreferrer">
-                  Open Estimator Dashboard
-                  <ExternalLink className="ml-2 h-4 w-4" />
-                </a>
-              </Button>
+              <p className="text-sm text-muted-foreground mb-4">
+                The original standalone HTML dashboard provides interactive visualizations and real-time metrics. 
+                The dashboard is available in the repository root as <code className="px-1 py-0.5 bg-muted rounded">index.html</code>.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                For the full interactive experience, open <code className="px-1 py-0.5 bg-muted rounded">index.html</code> 
+                directly from the repository files or access the Python API below for programmatic usage.
+              </p>
             </CardContent>
           </Card>
 

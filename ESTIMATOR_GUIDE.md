@@ -419,9 +419,11 @@ For more information, see:
 ## Support
 
 For questions or issues:
-1. Check the [GitHub Issues](https://github.com/pinkycollie/pinksync_estimator/issues)
+1. Check the [GitHub Issues](https://github.com/pinkycollie/pinksync_estimator/issues) page
 2. Review the [Contributing Guide](CONTRIBUTING.md)
-3. Contact the maintainers
+3. Refer to the documentation in this repository
+
+Repository: https://github.com/pinkycollie/pinksync_estimator
 
 ## License
 
