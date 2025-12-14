@@ -1,7 +1,7 @@
 import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
-import { LogIn, Home, Cloud, Database, FileText, Folder, MessageSquare, UserCircle, LogOut, Loader2 } from "lucide-react";
+import { LogIn, Home, Cloud, Database, FileText, Folder, MessageSquare, UserCircle, LogOut, Loader2, Calculator } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -15,6 +15,11 @@ export function Navigation() {
       title: "Dashboard",
       href: "/",
       icon: <Home className="h-5 w-5 mr-2" />,
+    },
+    {
+      title: "Estimator",
+      href: "/estimator",
+      icon: <Calculator className="h-5 w-5 mr-2" />,
     },
     {
       title: "Platform Sync",
