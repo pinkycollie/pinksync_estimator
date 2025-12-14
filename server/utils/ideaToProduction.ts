@@ -1200,6 +1200,45 @@ Thumbs.db
 | Live Server | Local dev server | 🌐 |
 | Path Intellisense | File path autocomplete | 📁 |
 
+
+## 🔮 Using AI Assistance
+
+1. **Get Code Suggestions**
+   - Type your code and wait for inline suggestions
+   - Press Tab to accept suggestions
+   - Visual indicator: 💡 Suggestion available
+
+2. **Ask AI for Help**
+   - Highlight code and press Ctrl+K (or Cmd+K on Mac)
+   - Type your question in the AI chat panel
+   - Visual indicator: 🤖 AI is processing
+
+3. **Use Custom Prompts**
+   - Open a prompt from the prompts directory
+   - Fill in the template variables
+   - Execute the prompt with Ctrl+Shift+L
+   - Visual indicator: 📝 Prompt executed
+
+4. **Generate Code**
+   - Type a comment describing what you want
+   - Press Ctrl+Enter to generate code
+   - Visual indicator: ✨ Code generated
+
+5. **Refactor Code**
+   - Highlight code and press Ctrl+Shift+R
+   - Describe how you want to refactor
+   - Visual indicator: 🔄 Code refactored
+
+## 📚 Accessibility-Focused Prompts
+
+| Prompt Name | Purpose | How to Use |
+|-------------|---------|-----------|
+| AccessibleComponent | Generate accessible UI components | Select component code, run prompt |
+| VisualExplanation | Create visual explanation of code | Select code, run prompt |
+| SimplifyLanguage | Simplify technical language | Select text, run prompt |
+| AddVisualCues | Add visual indicators to code | Select code, run prompt |
+| AccessibilityAudit | Check for accessibility issues | Select component, run prompt |
+
 ## 🎛️ Accessibility Settings
 
 - High contrast themes: File → Preferences → Color Theme
@@ -1231,6 +1270,7 @@ Thumbs.db
 ## 🌐 Netlify Deployment Flow
 
 \`\`\`
+    
  Local Project                    Netlify Platform
 +---------------+  git push     +-------------------+
 | Your Code     |-------------->| GitHub/GitLab     |
@@ -1316,6 +1356,7 @@ Thumbs.db
 ## 🔄 CI/CD Pipeline Visualization
 
 \`\`\`
+    
                       +----------------+
                       | Code Changes   |
                       +----------------+
@@ -1344,6 +1385,7 @@ Thumbs.db
                       | Application    |
                       +----------------+
 \`\`\`
+
 
 ## 🚦 Status Indicators
 
@@ -1389,6 +1431,7 @@ Thumbs.db
 ## 🔍 Monitoring Dashboard
 
 \`\`\`
+    
 +---------------------------------------------------------+
 | Deployment Status                                       |
 +---------------------------------------------------------+
@@ -1399,6 +1442,7 @@ Thumbs.db
 | Development | 🟢 Up  | 5 mins ago    | ✅ Pass | ✅ Pass |
 +---------------------------------------------------------+
 \`\`\`
+
 
 ## 🚨 Troubleshooting Common Issues
 
