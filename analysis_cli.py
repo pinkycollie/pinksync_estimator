@@ -11,7 +11,7 @@ import argparse
 import json
 import sys
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Union
 
 from resource_validator import (
     ResourceValidator, ResourceClaim, ResourceUsage, ResourceType
@@ -27,8 +27,8 @@ from benchmarking import BenchmarkingTool, BenchmarkCategory
 from reporting import ComprehensiveReportGenerator, ReportFormat
 
 
-def load_json_file(filepath: str) -> Any:
-    """Load data from JSON file."""
+def load_json_file(filepath: str) -> Union[Dict[str, Any], list]:
+    """Load data from JSON file and return as dict or list."""
     try:
         with open(filepath, 'r') as f:
             return json.load(f)

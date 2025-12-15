@@ -8,7 +8,7 @@ and extrapolate to macroeconomic scale for millions of users.
 import math
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from enum import Enum
 
 
@@ -229,7 +229,7 @@ class MicroMacroAnalyzer:
         
         return projections
     
-    def _get_scale_efficiency(self, user_count: int) -> tuple[ScaleLevel, float]:
+    def _get_scale_efficiency(self, user_count: int) -> Tuple[ScaleLevel, float]:
         """
         Get scale level and efficiency multiplier for user count.
         

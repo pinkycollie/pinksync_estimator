@@ -89,7 +89,9 @@ class ResourceValidator:
         """
         Initialize the resource validator.
         
-        :param tolerance_percent: Acceptable variance percentage before flagging.
+        Args:
+            tolerance_percent: Acceptable variance percentage before flagging issues.
+                             Default is 5.0 (5% variance is acceptable).
         """
         self.tolerance_percent = tolerance_percent
         self.validation_history: List[ValidationResult] = []

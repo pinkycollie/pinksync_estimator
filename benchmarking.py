@@ -68,6 +68,11 @@ class BenchmarkingTool:
     - Benchmarking reports
     """
     
+    # Comparison thresholds (percentages)
+    EXCEEDS_THRESHOLD = 20.0
+    MEETS_THRESHOLD = 10.0
+    BELOW_THRESHOLD = 30.0
+    
     # Industry standard benchmarks
     INDUSTRY_STANDARDS = {
         # Storage benchmarks (cost per GB/month)
@@ -319,20 +324,20 @@ class BenchmarkingTool:
         """
         if category == BenchmarkCategory.COST:
             # For cost, lower is better
-            if variance_percent < -20:
+            if variance_percent < -self.EXCEEDS_THRESHOLD:
                 return ComparisonResult.EXCEEDS_STANDARD
             elif variance_percent < 0:
                 return ComparisonResult.MEETS_STANDARD
-            elif variance_percent < 20:
+            elif variance_percent < self.EXCEEDS_THRESHOLD:
                 return ComparisonResult.BELOW_STANDARD
             else:
                 return ComparisonResult.SIGNIFICANTLY_BELOW
         
         elif category in [BenchmarkCategory.LATENCY]:
             # For latency, lower is better
-            if variance_percent < -20:
+            if variance_percent < -self.EXCEEDS_THRESHOLD:
                 return ComparisonResult.EXCEEDS_STANDARD
-            elif variance_percent < 10:
+            elif variance_percent < self.MEETS_THRESHOLD:
                 return ComparisonResult.MEETS_STANDARD
             elif variance_percent < 50:
                 return ComparisonResult.BELOW_STANDARD
@@ -341,20 +346,20 @@ class BenchmarkingTool:
         
         elif category in [BenchmarkCategory.THROUGHPUT, BenchmarkCategory.EFFICIENCY]:
             # For throughput/efficiency, higher is often better
-            if variance_percent > 20:
+            if variance_percent > self.EXCEEDS_THRESHOLD:
                 return ComparisonResult.EXCEEDS_STANDARD
-            elif variance_percent > -10:
+            elif variance_percent > -self.MEETS_THRESHOLD:
                 return ComparisonResult.MEETS_STANDARD
-            elif variance_percent > -30:
+            elif variance_percent > -self.BELOW_THRESHOLD:
                 return ComparisonResult.BELOW_STANDARD
             else:
                 return ComparisonResult.SIGNIFICANTLY_BELOW
         
         else:
             # Default: within 10% is acceptable
-            if abs(variance_percent) < 10:
+            if abs(variance_percent) < self.MEETS_THRESHOLD:
                 return ComparisonResult.MEETS_STANDARD
-            elif abs(variance_percent) < 30:
+            elif abs(variance_percent) < self.BELOW_THRESHOLD:
                 return ComparisonResult.BELOW_STANDARD
             else:
                 return ComparisonResult.SIGNIFICANTLY_BELOW
