@@ -1,5 +1,6 @@
 # PinkSync Estimator - AI OS Platform
 
+[![CodeQL Advanced](https://github.com/pinkycollie/pinksync_estimator/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/pinkycollie/pinksync_estimator/actions/workflows/codeql.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
