@@ -1,0 +1,24 @@
+{
+  "resources": [
+    {
+      "type": "storage",
+      "claimed": 1000.0,
+      "actual": 950.0,
+      "unit": "GB",
+      "period_start": "2024-01-01",
+      "period_end": "2024-01-31",
+      "cost": 23.00,
+      "samples": 744
+    },
+    {
+      "type": "compute",
+      "claimed": 500.0,
+      "actual": 525.0,
+      "unit": "CPU-hours",
+      "period_start": "2024-01-01",
+      "period_end": "2024-01-31",
+      "cost": 48.00,
+      "samples": 500
+    }
+  ]
+}

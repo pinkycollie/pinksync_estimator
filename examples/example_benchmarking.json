@@ -1,0 +1,12 @@
+{
+  "metrics": {
+    "storage_cost_per_gb": 0.025,
+    "compute_cost_per_hour": 0.055,
+    "p95_latency_ms": 250
+  },
+  "standards": {
+    "storage_cost_per_gb": "storage_cost_aws_s3_standard",
+    "compute_cost_per_hour": "compute_cost_aws_t3_medium",
+    "p95_latency_ms": "latency_p95_good"
+  }
+}
