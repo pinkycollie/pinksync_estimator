@@ -18,7 +18,7 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@astrajs/collections": "^0.3.4",
     "@datastax/astra-db-ts": "^2.1.2",
-    "@hookform/resolvers": "^3.9.1",
+    "@hookform/resolvers": "^5.2.2",
     "@huggingface/inference": "^3.6.2",
     "@jridgewell/trace-mapping": "^0.3.25",
     "@neondatabase/serverless": "^1.0.2",
