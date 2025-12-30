@@ -546,6 +546,10 @@ const webhookPayloadSchema = z.object({
 
 // Send event to Taskade webhook
 router.post('/webhook/taskade/sync', async (req: Request, res: Response) => {
+  const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
+  if (!WEBHOOK_SECRET || req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    return res.status(401).json({ success: false, error: 'Unauthorized' });
+  }
   // Validate webhook secret for authentication
   const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET;
   if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
