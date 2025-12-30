@@ -3,302 +3,879 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PinkSync Resource Estimator (MBTQ)</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>PinkSync Universal Estimator Dashboard</title>
     <style>
-        /* Custom styles for accessibility and theme cohesion */
+        :root {
+            --primary-color: #e91e8c;
+            --primary-light: #ff6bb5;
+            --primary-dark: #b3006c;
+            --success-color: #10b981;
+            --warning-color: #f59e0b;
+            --danger-color: #ef4444;
+            --info-color: #3b82f6;
+            --bg-color: #0f172a;
+            --bg-card: #1e293b;
+            --bg-card-hover: #334155;
+            --text-color: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: 'Inter', sans-serif;
-            background-color: #0d1117; 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            min-height: 100vh;
         }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        header {
+            background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
+            padding: 30px;
+            border-radius: 16px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(233, 30, 140, 0.3);
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        header h1 .logo {
+            width: 50px;
+            height: 50px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .industry-selector {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .industry-selector label {
+            font-weight: 600;
+        }
+
+        .industry-selector select {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border-radius: 8px;
+            border: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            cursor: pointer;
+        }
+
+        .industry-selector select option {
+            background: var(--bg-card);
+            color: var(--text-color);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
         .card {
-            background-color: #161b22;
-            border-color: #30363d;
+            background: var(--bg-card);
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid var(--border-color);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        .metric-box {
-            background-color: #30173e; 
-            border-left: 4px solid #f778ba; 
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
         }
-        .input-group label {
-            color: #c9d1d9;
-            font-weight: 500;
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
         }
-        .input-group input, .input-group select {
-            background-color: #21262d;
-            border-color: #484f58; 
-            color: #f0f6fc;
-            padding: 10px;
-            border-radius: 8px; 
-            transition: border-color 0.2s, box-shadow 0.2s;
+
+        .card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-        .input-group input:focus, .input-group select:focus {
-            outline: none;
-            border-color: #a778f7; 
-            box-shadow: 0 0 0 3px rgba(167, 120, 247, 0.5);
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
         }
-        button:focus-visible {
-            outline: 3px solid #a778f7;
-            outline-offset: 2px;
+
+        .card-icon.ai { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
+        .card-icon.users { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
+        .card-icon.project { background: linear-gradient(135deg, #10b981, #34d399); }
+        .card-icon.risk { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
+        .card-icon.industry { background: linear-gradient(135deg, var(--primary-color), var(--primary-light)); }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
         }
-        .pink-text {
-            color: #f778ba;
+
+        .metric {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 8px;
         }
-        .purple-text {
-            color: #a778f7;
+
+        .metric-label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 5px;
         }
-        .red-flag {
-            color: #f87171; /* Tailwind red-400 */
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
         }
-        .green-flag {
-             color: #4ade80; /* Tailwind green-400 */
+
+        .metric-value.success { color: var(--success-color); }
+        .metric-value.warning { color: var(--warning-color); }
+        .metric-value.danger { color: var(--danger-color); }
+        .metric-value.info { color: var(--info-color); }
+
+        .score-ring {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 20px;
+            position: relative;
+        }
+
+        .score-ring svg {
+            transform: rotate(-90deg);
+        }
+
+        .score-ring circle {
+            fill: none;
+            stroke-width: 10;
+        }
+
+        .score-ring .bg {
+            stroke: rgba(255, 255, 255, 0.1);
+        }
+
+        .score-ring .progress {
+            stroke-linecap: round;
+            transition: stroke-dashoffset 1s ease-out;
+        }
+
+        .score-ring .score-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .risk-badge.low { background: rgba(16, 185, 129, 0.2); color: var(--success-color); }
+        .risk-badge.medium { background: rgba(245, 158, 11, 0.2); color: var(--warning-color); }
+        .risk-badge.high { background: rgba(239, 68, 68, 0.2); color: var(--danger-color); }
+        .risk-badge.critical { background: rgba(239, 68, 68, 0.4); color: #fca5a5; }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-bar .fill {
+            height: 100%;
+            border-radius: 4px;
+            transition: width 0.5s ease-out;
+        }
+
+        .recommendations-list {
+            list-style: none;
+        }
+
+        .recommendations-list li {
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .recommendations-list li::before {
+            content: "💡";
+            flex-shrink: 0;
+        }
+
+        .benchmark-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .benchmark-table th,
+        .benchmark-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .benchmark-table th {
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            text-transform: uppercase;
+        }
+
+        .benchmark-table tr:hover td {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .benchmark-bar {
+            height: 24px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            min-width: 100px;
+        }
+
+        .benchmark-bar .fill {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            padding-right: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+        }
+
+        .wide-card {
+            grid-column: 1 / -1;
+        }
+
+        .chart-container {
+            height: 300px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-around;
+            padding: 20px;
+            gap: 10px;
+        }
+
+        .chart-bar {
+            flex: 1;
+            max-width: 60px;
+            background: linear-gradient(to top, var(--primary-color), var(--primary-light));
+            border-radius: 8px 8px 0 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-end;
+            padding-bottom: 10px;
+            transition: height 0.5s ease-out;
+            position: relative;
+        }
+
+        .chart-bar .label {
+            position: absolute;
+            bottom: -25px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-align: center;
+            width: 100%;
+            transform: rotate(-45deg);
+            transform-origin: top left;
+            white-space: nowrap;
+        }
+
+        .chart-bar .value {
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .tier-cards {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+        }
+
+        .tier-card {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: border-color 0.3s;
+        }
+
+        .tier-card.active {
+            border-color: var(--primary-color);
+        }
+
+        .tier-card h4 {
+            font-size: 1.1rem;
+            margin-bottom: 10px;
+        }
+
+        .tier-card .price {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary-light);
+        }
+
+        .tier-card .price span {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .tier-card .features {
+            margin-top: 15px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+
+        footer {
+            text-align: center;
+            padding: 30px;
+            color: var(--text-muted);
+            border-top: 1px solid var(--border-color);
+            margin-top: 40px;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .tier-cards {
+                grid-template-columns: repeat(2, 1fr);
+            }
+            
+            .metric-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-
-<div class="min-h-screen p-4 sm:p-8">
-    <div class="max-w-4xl mx-auto">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-pink-400 to-purple-400">
-                PinkSync Resource Estimator
+    <div class="container">
+        <header>
+            <h1>
+                <span class="logo">🩷</span>
+                PinkSync Universal Estimator
             </h1>
-            <p class="text-gray-400 mt-2">Toolkit for MBTQ Monorepo Cost and Orchestration Planning</p>
+            <p>Industry-agnostic cost estimation, AI inference analysis, and project delivery metrics</p>
+            <div class="industry-selector">
+                <label for="industry">Select Industry:</label>
+                <select id="industry" onchange="updateDashboard()">
+                    <option value="technology">Technology</option>
+                    <option value="healthcare">Healthcare</option>
+                    <option value="finance">Finance</option>
+                    <option value="education">Education</option>
+                    <option value="government">Government</option>
+                    <option value="retail">Retail</option>
+                    <option value="manufacturing">Manufacturing</option>
+                    <option value="legal">Legal</option>
+                    <option value="real_estate">Real Estate</option>
+                    <option value="entertainment">Entertainment</option>
+                </select>
+            </div>
         </header>
 
-        <!-- Main Estimator Card -->
-        <div class="card p-6 rounded-xl shadow-2xl border">
-            <h2 class="text-2xl font-semibold mb-6 text-white border-b border-gray-700 pb-3">Sync & Compute Parameters</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                <!-- 1. Data Size Input -->
-                <div class="input-group">
-                    <label for="dataSize" class="block text-sm font-medium mb-2">Total Data Size (GB)</label>
-                    <input type="number" id="dataSize" value="10" min="0.1" step="0.1"
-                           class="w-full">
-                    <p class="text-xs text-gray-500 mt-1">Total data to be synced (e.g., vCODE video backups).</p>
+        <!-- Key Metrics Row -->
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon ai">🤖</span>
+                        AI Efficiency
+                    </span>
+                    <span class="risk-badge low" id="ai-grade">A</span>
                 </div>
-
-                <!-- 2. Network Bandwidth Input -->
-                <div class="input-group">
-                    <label for="bandwidth" class="block text-sm font-medium mb-2">Network Bandwidth (Mbps)</label>
-                    <input type="number" id="bandwidth" value="100" min="1" step="1"
-                           class="w-full">
-                    <p class="text-xs text-gray-500 mt-1">Available speed for Source $\leftrightarrow$ Target connection.</p>
+                <div class="score-ring">
+                    <svg width="120" height="120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" id="ai-progress" cx="60" cy="60" r="50" 
+                                stroke="var(--success-color)" 
+                                stroke-dasharray="314" 
+                                stroke-dashoffset="31"></circle>
+                    </svg>
+                    <span class="score-text" id="ai-score">90</span>
                 </div>
-                
-                <!-- 3. File Count Input (Overhead Multiplier) -->
-                <div class="input-group">
-                    <label for="fileCount" class="block text-sm font-medium mb-2">Total File Count (Items to Process)</label>
-                    <input type="number" id="fileCount" value="5000" min="10" step="100"
-                           class="w-full">
-                    <p class="text-xs text-gray-500 mt-1">Correlates to the number of **pinksync** API calls needed.</p>
-                </div>
-                
-                <!-- 4. Latency/Overhead Input -->
-                <div class="input-group">
-                    <label for="latency" class="block text-sm font-medium mb-2">Per-Item Overhead (ms)</label>
-                    <input type="number" id="latency" value="50" min="10" step="1"
-                           class="w-full">
-                    <p class="text-xs text-gray-500 mt-1">Simulates **DeafAUTH** validation + **pinksync** routing latency.</p>
-                </div>
-
-                <!-- 5. Cloud Cost Input -->
-                <div class="input-group">
-                    <label for="costPerGB" class="block text-sm font-medium mb-2">Transfer Cost Per GB ($)</label>
-                    <input type="number" id="costPerGB" value="0.05" min="0" step="0.01"
-                           class="w-full">
-                    <p class="text-xs text-gray-500 mt-1">Cloud Egress/Transfer fee (e.g., GCP or Cloudflare storage cost).</p>
-                </div>
-                
-                <!-- 6. AI Model Selection (New Input) -->
-                <div class="input-group">
-                    <label for="aiModelType" class="block text-sm font-medium mb-2">AI Model Execution Cost</label>
-                    <select id="aiModelType" class="w-full">
-                        <option value="0.0002">RAG Query (Cheap, e.g., TWC Policy Check) - $0.0002/item</option>
-                        <option value="0.0017" selected>GPT-3.5 Inference (Standard, e.g., Simplification) - $0.0017/item</option>
-                        <option value="0.025">GPT-4 Turbo Inference (Expensive, e.g., Full Business Plan) - $0.025/item</option>
-                        <option value="0.10">Custom GPU Model (Very Expensive, e.g., ASL Glossing) - $0.10/item</option>
-                    </select>
-                    <p class="text-xs text-gray-500 mt-1">Selected model dictates cost per **360Magicians** call.</p>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Accuracy</div>
+                        <div class="metric-value success" id="ai-accuracy">95%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Cost/Token</div>
+                        <div class="metric-value info" id="ai-cost">$0.002</div>
+                    </div>
                 </div>
             </div>
-            
-            <div class="flex space-x-4 mt-8">
-                <button onclick="calculateSync()" 
-                        class="flex-1 py-3 bg-pink-600 hover:bg-pink-700 text-white font-bold rounded-lg transition-colors">
-                    Calculate PinkSync Estimate
-                </button>
-                <button onclick="resetInputs()" 
-                        class="w-1/4 py-3 bg-gray-600 hover:bg-gray-700 text-white font-bold rounded-lg transition-colors">
-                    Reset
-                </button>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon users">👥</span>
+                        User Engagement
+                    </span>
+                    <span class="risk-badge low" id="engagement-status">Healthy</span>
+                </div>
+                <div class="score-ring">
+                    <svg width="120" height="120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" id="engagement-progress" cx="60" cy="60" r="50" 
+                                stroke="var(--info-color)" 
+                                stroke-dasharray="314" 
+                                stroke-dashoffset="47"></circle>
+                    </svg>
+                    <span class="score-text" id="engagement-score">85</span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Churn Rate</div>
+                        <div class="metric-value success" id="churn-rate">2.5%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Adoption</div>
+                        <div class="metric-value info" id="adoption-rate">78%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon project">📊</span>
+                        Project Delivery
+                    </span>
+                    <span class="risk-badge low" id="delivery-status">On Track</span>
+                </div>
+                <div class="score-ring">
+                    <svg width="120" height="120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" id="delivery-progress" cx="60" cy="60" r="50" 
+                                stroke="var(--success-color)" 
+                                stroke-dasharray="314" 
+                                stroke-dashoffset="63"></circle>
+                    </svg>
+                    <span class="score-text" id="delivery-score">80</span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">ROI</div>
+                        <div class="metric-value success" id="roi">125%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Completion</div>
+                        <div class="metric-value info" id="completion">92%</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon risk">⚠️</span>
+                        Risk Level
+                    </span>
+                    <span class="risk-badge low" id="risk-level">Low</span>
+                </div>
+                <div class="score-ring">
+                    <svg width="120" height="120">
+                        <circle class="bg" cx="60" cy="60" r="50"></circle>
+                        <circle class="progress" id="risk-progress" cx="60" cy="60" r="50" 
+                                stroke="var(--success-color)" 
+                                stroke-dasharray="314" 
+                                stroke-dashoffset="251"></circle>
+                    </svg>
+                    <span class="score-text" id="risk-score">20</span>
+                </div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Critical Risks</div>
+                        <div class="metric-value success" id="critical-risks">0</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Open Items</div>
+                        <div class="metric-value warning" id="open-items">3</div>
+                    </div>
+                </div>
             </div>
         </div>
-        
-        <!-- Results Card -->
-        <div id="results-card" class="card p-6 rounded-xl shadow-2xl border mt-8 hidden">
-            <h2 class="text-2xl font-semibold mb-6 text-white border-b border-gray-700 pb-3">Forecasted Metrics (Output)</h2>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                
-                <!-- Total Time -->
-                <div class="metric-box p-4 rounded-lg">
-                    <div class="text-lg font-medium purple-text mb-1">Total Time</div>
-                    <div id="timeResult" class="text-3xl font-bold text-white">0 min</div>
-                </div>
 
-                <!-- Total Cost -->
-                <div class="metric-box p-4 rounded-lg">
-                    <div class="text-lg font-medium pink-text mb-1">Total Cost</div>
-                    <div id="costResult" class="text-3xl font-bold text-white">$0.00</div>
+        <!-- Industry Configuration -->
+        <div class="dashboard-grid">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon industry">🏢</span>
+                        Industry Configuration
+                    </span>
                 </div>
-                
-                <!-- AI Cost Ratio (New Metric) -->
-                <div class="metric-box p-4 rounded-lg">
-                    <div class="text-lg font-medium text-white mb-1">AI Cost Ratio</div>
-                    <div id="aiCostRatio" class="text-3xl font-bold text-white">0%</div>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Industry</div>
+                        <div class="metric-value" id="industry-name">Technology</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Multiplier</div>
+                        <div class="metric-value info" id="total-multiplier">1.54x</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Compliance</div>
+                        <div class="metric-value" id="compliance-mult">1.1x</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Security</div>
+                        <div class="metric-value" id="security-mult">1.4x</div>
+                    </div>
                 </div>
-                
+                <div style="margin-top: 15px;">
+                    <div class="metric-label">Data Sensitivity Level</div>
+                    <div class="progress-bar">
+                        <div class="fill" id="sensitivity-bar" style="width: 60%; background: var(--info-color);"></div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 5px; font-size: 0.8rem; color: var(--text-muted);">
+                        <span>Low</span>
+                        <span id="sensitivity-level">3/5</span>
+                        <span>High</span>
+                    </div>
+                </div>
             </div>
 
-            <!-- Detailed Breakdown (Compliance/TWC focus) -->
-            <div class="mt-6 p-4 rounded-lg border border-gray-700 bg-gray-800">
-                <h3 class="text-lg font-semibold text-white mb-2">Compliance & Cost Optimization Breakdown</h3>
-                <div class="text-sm text-gray-400 space-y-1">
-                    <p><span class="font-medium purple-text">1. Raw Data Transfer Time:</span> <span id="transferTime">0 seconds</span></p>
-                    <p><span class="font-medium pink-text">2. Total Orchestration Overhead:</span> <span id="overheadTime">0 seconds</span> (Latency penalty)</p>
-                    <p><span class="font-medium purple-text">3. AI Execution Cost:</span> <span id="aiCost">\$0.00</span></p>
-                    <p class="mt-3 text-sm" id="complianceNote">
-                        Note: The $\text{Per-Item Latency}$ is critical. Low latency ensures real-time VRI/AI calls (pinksync) are not delayed by API overhead.
-                    </p>
-                    <p class="mt-3 text-sm red-flag font-bold" id="costRecommendation">
-                        Recommendation: Evaluate model tier.
-                    </p>
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-title">📋 Regulatory Requirements</span>
+                </div>
+                <ul class="recommendations-list" id="regulatory-list">
+                    <li>SOC 2 Type II Compliance</li>
+                    <li>ISO 27001 Certification</li>
+                    <li>GDPR Data Protection</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- User Tiers -->
+        <div class="dashboard-grid">
+            <div class="card wide-card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon users">💳</span>
+                        User Management Tiers
+                    </span>
+                </div>
+                <div class="tier-cards">
+                    <div class="tier-card">
+                        <h4>Free</h4>
+                        <div class="price">$0<span>/mo</span></div>
+                        <div class="features">
+                            100 API calls<br>
+                            1 GB storage<br>
+                            10K AI tokens
+                        </div>
+                    </div>
+                    <div class="tier-card">
+                        <h4>Basic</h4>
+                        <div class="price">$9.99<span>/mo</span></div>
+                        <div class="features">
+                            1K API calls<br>
+                            10 GB storage<br>
+                            100K AI tokens
+                        </div>
+                    </div>
+                    <div class="tier-card active">
+                        <h4>Professional</h4>
+                        <div class="price">$29.99<span>/mo</span></div>
+                        <div class="features">
+                            10K API calls<br>
+                            100 GB storage<br>
+                            500K AI tokens
+                        </div>
+                    </div>
+                    <div class="tier-card">
+                        <h4>Enterprise</h4>
+                        <div class="price">$99.99<span>/mo</span></div>
+                        <div class="features">
+                            Unlimited calls<br>
+                            1 TB storage<br>
+                            Unlimited tokens
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Project Reference -->
-        <div class="mt-12 text-center text-gray-500 text-xs">
-            <p>Built for the PinkyCollie Monorepo and MBTQ Universe Ecosystem.</p>
-            <p class="mt-1">Toolkit for optimizing PinkSync Orchestration and 360Magicians resource usage.</p>
+        <!-- Cross-Industry Benchmark -->
+        <div class="dashboard-grid">
+            <div class="card wide-card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon industry">📈</span>
+                        Cross-Industry Cost Benchmark
+                    </span>
+                    <span style="color: var(--text-muted); font-size: 0.9rem;">Base cost: $1,000</span>
+                </div>
+                <table class="benchmark-table">
+                    <thead>
+                        <tr>
+                            <th>Industry</th>
+                            <th>Multiplier</th>
+                            <th>Adjusted Cost</th>
+                            <th>Relative Cost</th>
+                        </tr>
+                    </thead>
+                    <tbody id="benchmark-body">
+                        <!-- Populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
         </div>
 
+        <!-- Recommendations -->
+        <div class="dashboard-grid">
+            <div class="card wide-card">
+                <div class="card-header">
+                    <span class="card-title">
+                        <span class="card-icon risk">💡</span>
+                        Top Recommendations
+                    </span>
+                </div>
+                <ul class="recommendations-list" id="recommendations-list">
+                    <li>AI performance is optimal. Continue monitoring for any degradation.</li>
+                    <li>User engagement is healthy. Focus on maintaining current satisfaction levels.</li>
+                    <li>Project delivery is on track. Maintain current practices and monitoring.</li>
+                </ul>
+            </div>
+        </div>
+
+        <footer>
+            <p>PinkSync Universal Estimator v1.0 | Industry-Agnostic Cost Analysis Framework</p>
+            <p style="margin-top: 10px; font-size: 0.9rem;">
+                Supports Healthcare, Finance, Education, Government, Retail, Manufacturing, Technology, Legal, Real Estate, Entertainment
+            </p>
+        </footer>
     </div>
-</div>
 
-<script>
-    // Constants for calculation
-    const BITS_PER_BYTE = 8;
-    const SECONDS_PER_MINUTE = 60;
-    
-    // Default values for reset
-    const defaultValues = {
-        dataSize: 10,
-        bandwidth: 100,
-        latency: 50,
-        fileCount: 5000,
-        costPerGB: 0.05,
-        aiCostPerRun: 0.0017 // This default is overridden by the select box initially
-    };
+    <script>
+        // Industry configurations
+        const industryConfigs = {
+            healthcare: {
+                name: 'Healthcare',
+                compliance: 1.5,
+                security: 1.6,
+                operational: 1.2,
+                sensitivity: 5,
+                regulations: ['HIPAA', 'HITECH', 'FDA 21 CFR Part 11']
+            },
+            finance: {
+                name: 'Finance',
+                compliance: 1.6,
+                security: 1.7,
+                operational: 1.3,
+                sensitivity: 5,
+                regulations: ['SOX', 'PCI-DSS', 'GDPR', 'Basel III']
+            },
+            education: {
+                name: 'Education',
+                compliance: 1.2,
+                security: 1.2,
+                operational: 1.0,
+                sensitivity: 3,
+                regulations: ['FERPA', 'COPPA']
+            },
+            government: {
+                name: 'Government',
+                compliance: 1.7,
+                security: 1.8,
+                operational: 1.4,
+                sensitivity: 5,
+                regulations: ['FedRAMP', 'FISMA', 'NIST 800-53']
+            },
+            retail: {
+                name: 'Retail',
+                compliance: 1.1,
+                security: 1.3,
+                operational: 1.1,
+                sensitivity: 3,
+                regulations: ['PCI-DSS', 'GDPR', 'CCPA']
+            },
+            manufacturing: {
+                name: 'Manufacturing',
+                compliance: 1.2,
+                security: 1.2,
+                operational: 1.3,
+                sensitivity: 2,
+                regulations: ['ISO 9001', 'ISO 27001']
+            },
+            technology: {
+                name: 'Technology',
+                compliance: 1.1,
+                security: 1.4,
+                operational: 1.0,
+                sensitivity: 3,
+                regulations: ['SOC 2', 'ISO 27001', 'GDPR']
+            },
+            legal: {
+                name: 'Legal',
+                compliance: 1.5,
+                security: 1.5,
+                operational: 1.2,
+                sensitivity: 4,
+                regulations: ['Attorney-Client Privilege', 'ABA Guidelines']
+            },
+            real_estate: {
+                name: 'Real Estate',
+                compliance: 1.1,
+                security: 1.2,
+                operational: 1.1,
+                sensitivity: 2,
+                regulations: ['RESPA', 'Fair Housing Act']
+            },
+            entertainment: {
+                name: 'Entertainment',
+                compliance: 1.0,
+                security: 1.2,
+                operational: 1.1,
+                sensitivity: 2,
+                regulations: ['DMCA', 'GDPR']
+            }
+        };
 
-    function getAICostPerRun() {
-        return parseFloat(document.getElementById('aiModelType').value);
-    }
-
-    function calculateSync() {
-        // --- 1. GET USER INPUTS ---
-        const dataSizeGB = parseFloat(document.getElementById('dataSize').value) || 0;
-        const bandwidthMbps = parseFloat(document.getElementById('bandwidth').value) || 0;
-        const latencyMS = parseFloat(document.getElementById('latency').value) || 0;
-        const fileCount = parseInt(document.getElementById('fileCount').value) || 0;
-        const costPerGB = parseFloat(document.getElementById('costPerGB').value) || 0;
-        const aiCostPerRun = getAICostPerRun(); // Get cost from select input
-
-        // --- 2. CALCULATE TIME METRICS ---
-        let transferTimeSeconds = 0;
-        
-        const dataSizeMegabits = dataSizeGB * 1024 * BITS_PER_BYTE; 
-
-        if (bandwidthMbps > 0) {
-            transferTimeSeconds = dataSizeMegabits / bandwidthMbps;
+        function updateScoreRing(progressId, score) {
+            const circumference = 314; // 2 * PI * 50
+            const offset = circumference - (score / 100) * circumference;
+            document.getElementById(progressId).style.strokeDashoffset = offset;
         }
 
-        const overheadTimeSeconds = (fileCount * latencyMS) / 1000; 
-        const totalTimeSeconds = transferTimeSeconds + overheadTimeSeconds;
-        const totalTimeMinutes = totalTimeSeconds / SECONDS_PER_MINUTE;
-
-        // --- 3. CALCULATE COST METRICS ---
-        
-        const transferCostTotal = dataSizeGB * costPerGB;
-        const aiCostTotal = fileCount * aiCostPerRun;
-        const totalCost = transferCostTotal + aiCostTotal;
-        
-        // AI Cost Ratio Calculation (New)
-        let aiCostRatio = 0;
-        if (totalCost > 0) {
-            aiCostRatio = (aiCostTotal / totalCost) * 100;
+        function updateDashboard() {
+            const industry = document.getElementById('industry').value;
+            const config = industryConfigs[industry];
+            
+            // Update industry info
+            document.getElementById('industry-name').textContent = config.name;
+            const totalMult = config.compliance * config.security * config.operational;
+            document.getElementById('total-multiplier').textContent = totalMult.toFixed(2) + 'x';
+            document.getElementById('compliance-mult').textContent = config.compliance.toFixed(1) + 'x';
+            document.getElementById('security-mult').textContent = config.security.toFixed(1) + 'x';
+            document.getElementById('sensitivity-level').textContent = config.sensitivity + '/5';
+            document.getElementById('sensitivity-bar').style.width = (config.sensitivity * 20) + '%';
+            
+            // Update regulatory requirements
+            const regList = document.getElementById('regulatory-list');
+            regList.innerHTML = config.regulations.map(reg => `<li>${reg}</li>`).join('');
+            
+            // Update benchmark table
+            updateBenchmarkTable();
         }
 
-        // --- 4. DISPLAY RESULTS ---
-        
-        // Format Time Result (display minutes if over 2 minutes, otherwise seconds)
-        document.getElementById('timeResult').innerText = totalTimeMinutes >= 2 
-            ? `${totalTimeMinutes.toFixed(1)} min` 
-            : `${totalTimeSeconds.toFixed(1)} sec`;
-
-        document.getElementById('costResult').innerText = `$${totalCost.toFixed(2)}`;
-        document.getElementById('aiCostRatio').innerText = `${aiCostRatio.toFixed(0)}% AI Cost`;
-
-        // Breakdown for Auditing
-        document.getElementById('transferTime').innerText = `${transferTimeSeconds.toFixed(1)} seconds`;
-        document.getElementById('overheadTime').innerText = `${overheadTimeSeconds.toFixed(1)} seconds`;
-        document.getElementById('aiCost').innerText = `$${aiCostTotal.toFixed(2)} (${fileCount} runs @ $${aiCostPerRun.toFixed(4)}/run)`;
-        
-        // --- 5. COMPLIANCE & RECOMMENDATION LOGIC ---
-        
-        const complianceNote = document.getElementById('complianceNote');
-        const costRecommendation = document.getElementById('costRecommendation');
-        
-        // A. Overhead Time Compliance Check (Accessibility)
-        if (overheadTimeSeconds >= 5) {
-            complianceNote.classList.add('text-yellow-400');
-            complianceNote.classList.remove('text-red-400');
-            complianceNote.innerHTML = `⚠️ **Warning:** High Orchestration Overhead ($\ge 5$ seconds). This may cause perceptible lag and impact $\text{VRI}$ quality. Optimization of $\text{API}$ calls needed.`;
-        } else {
-            complianceNote.classList.add('text-red-400');
-            complianceNote.classList.remove('text-yellow-400');
-            complianceNote.innerHTML = `Note: The $\text{Per-Item Latency}$ is critical. Low latency ensures real-time VRI/AI calls (pinksync) are not delayed by API overhead.`;
-        }
-        
-        // B. Cost Optimization Check (Financial)
-        costRecommendation.classList.remove('red-flag', 'green-flag');
-        
-        if (aiCostRatio > 70) {
-            costRecommendation.classList.add('red-flag');
-            costRecommendation.innerText = `🚨 **HIGH COST WARNING:** AI represents ${aiCostRatio.toFixed(0)}% of total spend. Consider switching to a cheaper RAG model or optimizing the workflow (reduce File Count).`;
-        } else if (aiCostRatio < 20) {
-            costRecommendation.classList.add('green-flag');
-            costRecommendation.innerText = `✅ Cost Structure is Efficient: $\text{AI}$ use is minimal. Focus optimization on reducing transfer fees.`;
-        } else {
-            costRecommendation.innerText = `Budget is balanced. $\text{AI}$ spend is acceptable at ${aiCostRatio.toFixed(0)}% of total.`;
+        function updateBenchmarkTable() {
+            const baseCost = 1000;
+            const tbody = document.getElementById('benchmark-body');
+            
+            const industries = Object.entries(industryConfigs).map(([key, config]) => {
+                const mult = config.compliance * config.security * config.operational;
+                return {
+                    key,
+                    name: config.name,
+                    multiplier: mult,
+                    adjustedCost: baseCost * mult
+                };
+            }).sort((a, b) => a.adjustedCost - b.adjustedCost);
+            
+            const maxCost = Math.max(...industries.map(i => i.adjustedCost));
+            
+            tbody.innerHTML = industries.map(ind => {
+                const widthPercent = (ind.adjustedCost / maxCost) * 100;
+                const color = ind.multiplier < 1.5 ? 'var(--success-color)' : 
+                              ind.multiplier < 2.5 ? 'var(--warning-color)' : 'var(--danger-color)';
+                
+                return `
+                    <tr>
+                        <td>${ind.name}</td>
+                        <td>${ind.multiplier.toFixed(2)}x</td>
+                        <td>$${ind.adjustedCost.toFixed(2)}</td>
+                        <td>
+                            <div class="benchmark-bar">
+                                <div class="fill" style="width: ${widthPercent}%; background: ${color};">
+                                    ${widthPercent.toFixed(0)}%
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
         }
 
-
-        document.getElementById('results-card').classList.remove('hidden');
-    }
-
-    function resetInputs() {
-        document.getElementById('dataSize').value = defaultValues.dataSize;
-        document.getElementById('bandwidth').value = defaultValues.bandwidth;
-        document.getElementById('latency').value = defaultValues.latency;
-        document.getElementById('fileCount').value = defaultValues.fileCount;
-        document.getElementById('costPerGB').value = defaultValues.costPerGB;
-        // Resetting select box to its default selected option (GPT-3.5 Inference)
-        document.getElementById('aiModelType').value = '0.0017'; 
-        document.getElementById('results-card').classList.add('hidden');
-    }
-</script>
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', () => {
+            updateDashboard();
+            
+            // Set initial score ring values
+            updateScoreRing('ai-progress', 90);
+            updateScoreRing('engagement-progress', 85);
+            updateScoreRing('delivery-progress', 80);
+            updateScoreRing('risk-progress', 20);
+        });
+    </script>
 </body>
 </html>
