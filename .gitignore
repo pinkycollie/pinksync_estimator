@@ -4,3 +4,82 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+
+# Environment variables - NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS files
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Test coverage
+coverage/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Database
+*.sqlite
+*.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+*.egg-info/
+.eggs/
+venv/
+.venv/
+
+# File Backups - Created by file-integrity-checker
+.file-backups/
+
+# Backup and temporary files
+*~
+*.bak
+*.backup
+*copy.ts
+*copy.js
+*.tmp
+*.temp
+
+# Sensitive files
+*.key
+*.pem
+*.cert
+*.crt
+*.p12
+*.pfx
+*secret*
+*password*
+credentials.json
+
+# iOS sync artifacts - prevent corruption
+*.mpeg
+*.mp4
+*.mp3
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Integrity reports
+file-integrity-report.md
+ios-sync-report.md
+
+# Archive directories
+archive/
+archived/
+backups/

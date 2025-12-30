@@ -10,6 +10,7 @@ import realEstateRoutes from './api/real-estate-routes';
 import insuranceRoutes from './api/insurance-routes';
 import syncRoutes from './api/sync-routes';
 import githubReposRoutes from './api/github-repos-routes';
+import fileAnalyzerRoutes from './api/file-analyzer-routes';
 
 // Set up WebSocket connections (for real-time communication)
 const setupWebSockets = (server: Server) => {
@@ -68,6 +69,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/insurance', insuranceRoutes);
   app.use('/api/sync', syncRoutes);
   app.use('/api/github', githubReposRoutes);
+  app.use('/api/file-analyzer', fileAnalyzerRoutes);
   
   // API health check
   app.get('/api/health', (_req, res) => {

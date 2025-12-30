@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import NotFoundPage from "@/pages/NotFoundPage";
 import Dashboard from "@/pages/Dashboard";
 import PlatformConnections from "@/pages/PlatformConnections";
+import Estimator from "@/pages/Estimator";
 import { AppProvider } from "./contexts/AppContext";
 import Layout from "@/components/Layout";
 import { useAuth } from "./hooks/useAuth";
@@ -38,6 +39,7 @@ function Router() {
     <Layout>
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/estimator" component={Estimator} />
         <Route path="/sync">
           <ProtectedRoute component={PlatformConnections} />
         </Route>
