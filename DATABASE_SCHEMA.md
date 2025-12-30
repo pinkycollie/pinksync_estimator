@@ -1,4 +1,4 @@
-# Pinky's AI OS - Database Schema Specification
+# PinkSync Estimator - Database Schema Specification
 
 ## User Management
 
