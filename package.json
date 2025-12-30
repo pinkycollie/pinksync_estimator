@@ -77,7 +77,7 @@
     "cmdk": "^1.1.1",
     "connect-pg-simple": "^10.0.0",
     "date-fns": "^4.1.0",
-    "drizzle-orm": "^0.41.0",
+    "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
     "dropbox": "^10.34.0",
     "embla-carousel-react": "^8.3.0",
