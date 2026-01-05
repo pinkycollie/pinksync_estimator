@@ -52,7 +52,7 @@ jobs:
           echo "NPM audit completed"
 
       - name: Upload npm audit results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: npm-audit-results
           path: npm-audit.json
@@ -94,7 +94,7 @@ jobs:
           echo "Bandit scan completed"
 
       - name: Upload Bandit results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: bandit-results
           path: bandit-report.json
@@ -127,7 +127,7 @@ jobs:
           ignore-unfixed: true
 
       - name: Upload Trivy results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: trivy-results
           path: trivy-results.json
