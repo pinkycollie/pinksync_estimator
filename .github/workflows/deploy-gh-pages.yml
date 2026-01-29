@@ -9,8 +9,12 @@ on:
 
 permissions:
   contents: read
+  security-events: write
+  actions: read
+  packages: read
   pages: write
   id-token: write
+
 
 concurrency:
   group: "pages"
