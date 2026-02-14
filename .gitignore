@@ -42,3 +42,44 @@ __pycache__/
 .eggs/
 venv/
 .venv/
+
+# File Backups - Created by file-integrity-checker
+.file-backups/
+
+# Backup and temporary files
+*~
+*.bak
+*.backup
+*copy.ts
+*copy.js
+*.tmp
+*.temp
+
+# Sensitive files
+*.key
+*.pem
+*.cert
+*.crt
+*.p12
+*.pfx
+*secret*
+*password*
+credentials.json
+
+# iOS sync artifacts - prevent corruption
+*.mpeg
+*.mp4
+*.mp3
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Integrity reports
+file-integrity-report.md
+ios-sync-report.md
+
+# Archive directories
+archive/
+archived/
+backups/

@@ -1,7 +1,6 @@
 # PinkSync Estimator - AI OS Platform
 
-> **🔧 Template Repository**: This is a template repository for internal use. Automated deployment has been disabled to allow each client project to configure deployment according to their specific requirements. See [DEPLOYMENT.md](DEPLOYMENT.md) for deployment options.
-
+[![CodeQL Advanced](https://github.com/pinkycollie/pinksync_estimator/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/pinkycollie/pinksync_estimator/actions/workflows/codeql.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
@@ -11,16 +10,52 @@
 [![Accessibility](https://img.shields.io/badge/Accessibility-Deaf%20Community%20Focused-0077B5?logo=accessibility&logoColor=white)](FEATURE_SPECIFICATION.md)
 [![Contributions Welcome](https://img.shields.io/badge/Contributions-Welcome-brightgreen?logo=github)](CONTRIBUTING.md)
 
-An AI-powered productivity platform for multi-platform file synchronization, document management, and workflow automation. This project includes accessible features designed with the deaf community in mind.
+An AI-powered productivity platform for multi-platform file synchronization, document management, and workflow automation. This project includes accessible features designed with the deaf community in mind, as well as the original **PinkSync Universal Estimator** for cost estimation and analysis.
 
 ## About This Project
 
 This started as an early learning project built on Replit. It has since evolved into a more structured codebase suitable for community contributions. While some rough edges remain from the learning stage, the project demonstrates:
 
+- **PinkSync Universal Estimator**: The original cost estimation platform for AI inference, sync operations, and project delivery metrics across 10+ industries
 - Multi-platform file synchronization (Ubuntu, Windows, iOS, Dropbox, Google Drive)
 - AI-powered document categorization and analysis
 - Workflow automation for document processing
 - Accessibility-focused features for visual-centric workflows
+
+## Features
+
+### 🩷 PinkSync Universal Estimator
+
+The original platform created for forecasting resource usage, timing, and costs for data synchronization and AI inference:
+
+- **Industry-specific cost multipliers** for Healthcare, Finance, Education, Government, Retail, Manufacturing, Technology, Legal, Real Estate, and Entertainment
+- **AI inference cost analysis** including tokens, GPU utilization, and memory usage
+- **User management tier analysis** (Free, Basic, Professional, Enterprise)
+- **Project delivery metrics** and efficiency tracking
+- **Risk assessment and recommendations** engine
+- **Cross-industry benchmarking** capabilities
+
+Access the estimator at `/estimator` in the web application or use the Python modules directly:
+
+```python
+# Core estimator
+from pinksync_estimator import PinkSyncEstimator
+
+# Universal estimator with multi-industry support
+from universal_estimator import UniversalPinkSyncEstimator
+```
+
+### 📁 File Synchronization & Management
+
+- Multi-platform sync across Ubuntu, Windows, iOS, and cloud services
+- Real-time file monitoring and automated backups
+- AI-powered document categorization
+
+### 🎯 Accessibility Features
+
+- Visual-centric workflows designed for the deaf community
+- High-contrast modes and customizable visual alerts
+- SignYapse API integration for sign language translation
 
 ## Getting Started
 
