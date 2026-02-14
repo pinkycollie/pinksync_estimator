@@ -59,6 +59,8 @@ from universal_estimator import UniversalPinkSyncEstimator
 
 ## Getting Started
 
+> **Note**: Before deploying, review [DEPLOYMENT.md](DEPLOYMENT.md) for deployment configuration options.
+
 ### Prerequisites
 
 - Node.js 20+
@@ -119,6 +121,7 @@ This project is licensed under the MIT License - see the package.json file for d
 
 ## Documentation
 
+- [Deployment Guide](DEPLOYMENT.md) - **Start here for deployment configuration**
 - [API Specification](API_SPECIFICATION.md)
 - [Database Schema](DATABASE_SCHEMA.md)
 - [Architecture Overview](ARCHITECTURE.md)
