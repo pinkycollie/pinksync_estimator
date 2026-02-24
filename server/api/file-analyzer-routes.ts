@@ -6,6 +6,7 @@
  */
 
 import { Router, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import {
   analyzePath,
@@ -271,7 +272,7 @@ router.post('/summary', (req: Request, res: Response) => {
  * POST /api/file-analyzer/filter
  * Analyze a path and filter results by category, extension, or size
  */
-router.post('/filter', (req: Request, res: Response) => {
+router.post('/filter', filterLimiter, (req: Request, res: Response) => {
   try {
     console.log('[FileAnalyzer] POST /filter', { body: req.body });
     
