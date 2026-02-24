@@ -1,5 +1,6 @@
 # PinkSync Estimator - AI OS Platform
 
+[![CodeQL Advanced](https://github.com/pinkycollie/pinksync_estimator/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/pinkycollie/pinksync_estimator/actions/workflows/codeql.yml)
 [![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/Node.js-20+-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)](https://reactjs.org/)
@@ -57,6 +58,8 @@ from universal_estimator import UniversalPinkSyncEstimator
 - SignYapse API integration for sign language translation
 
 ## Getting Started
+
+> **Note**: Before deploying, review [DEPLOYMENT.md](DEPLOYMENT.md) for deployment configuration options.
 
 ### Prerequisites
 
@@ -118,6 +121,7 @@ This project is licensed under the MIT License - see the package.json file for d
 
 ## Documentation
 
+- [Deployment Guide](DEPLOYMENT.md) - **Start here for deployment configuration**
 - [API Specification](API_SPECIFICATION.md)
 - [Database Schema](DATABASE_SCHEMA.md)
 - [Architecture Overview](ARCHITECTURE.md)
