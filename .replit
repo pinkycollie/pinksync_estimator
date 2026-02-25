@@ -5,10 +5,10 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 [nix]
 channel = "stable-24_05"
 
-[deployment]
-deploymentTarget = "autoscale"
-build = ["npm", "run", "build"]
-run = ["npm", "run", "start"]
+# [deployment]
+# Deployment configuration removed - this is a template repository.
+# Configure deployment according to your client's requirements.
+# See DEPLOYMENT.md for guidance on setting up deployment for your project.
 
 [[ports]]
 localPort = 5000
