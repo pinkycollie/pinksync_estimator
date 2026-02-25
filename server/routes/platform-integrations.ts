@@ -69,19 +69,19 @@ router.post('/projects/:projectId/replit-setup', async (req, res) => {
   }
 });
 
-// Setup Cursor AI integration
-router.post('/projects/:projectId/cursor-ai-setup', async (req, res) => {
+// Setup VS Code integration
+router.post('/projects/:projectId/vscode-setup', async (req, res) => {
   try {
     const { projectId } = req.params;
     
-    const result = await IdeaToProduction.setupCursorAI(
+    const result = await IdeaToProduction.setupVSCode(
       parseInt(projectId)
     );
     
     res.json(result);
   } catch (error) {
-    console.error('Error setting up Cursor AI:', error);
-    res.status(500).json({ error: error.message || 'Failed to set up Cursor AI' });
+    console.error('Error setting up VS Code:', error);
+    res.status(500).json({ error: error.message || 'Failed to set up VS Code' });
   }
 });
 
@@ -340,7 +340,7 @@ router.get('/projects/:projectId/structure', async (req, res) => {
         
         Git Repository: ${project.gitRepository || 'Not configured'}
         Replit Integration: ${project.metadata?.replit ? 'Configured' : 'Not configured'}
-        Cursor AI Integration: ${project.metadata?.cursorAI ? 'Configured' : 'Not configured'}
+        VS Code Integration: ${project.metadata?.vscode ? 'Configured' : 'Not configured'}
         Netlify Integration: ${project.metadata?.netlify ? 'Configured' : 'Not configured'}
         CI/CD Pipeline: ${project.metadata?.cicd ? 'Configured' : 'Not configured'}
       `

@@ -1,9 +1,14 @@
+#!/usr/bin/env npx tsx
 /**
- * Pinksync File Analyzer
+ * Pinksync File Analyzer CLI Tool
  * 
- * A module for analyzing and categorizing files.
- * This module provides the core file analysis functionality that can be used
- * by both CLI tools and HTTP API endpoints.
+ * A standalone command-line utility for analyzing and categorizing files.
+ * This tool extracts the core file analysis functionality from the Pinksync
+ * prototype for use as a portable utility.
+ * 
+ * Usage:
+ *   npx tsx tools/file-analyzer.ts <file-or-directory>
+ *   npx tsx tools/file-analyzer.ts --help
  * 
  * Features:
  *   - Automatic file categorization (document, code, image, video, etc.)
@@ -16,7 +21,7 @@ import fs from 'fs';
 import path from 'path';
 
 // File category enum
-export enum FileCategory {
+enum FileCategory {
   DOCUMENT = "document",
   CODE = "code",
   IMAGE = "image",
@@ -28,7 +33,7 @@ export enum FileCategory {
 }
 
 // Visual indicators for accessibility (deaf-centric design)
-export const VISUAL_INDICATORS: Record<FileCategory, string> = {
+const VISUAL_INDICATORS: Record<FileCategory, string> = {
   [FileCategory.DOCUMENT]: "📄",
   [FileCategory.CODE]: "💻",
   [FileCategory.IMAGE]: "🖼️",
@@ -40,7 +45,7 @@ export const VISUAL_INDICATORS: Record<FileCategory, string> = {
 };
 
 // Extension to category mapping
-export const EXTENSION_CATEGORIES: Record<string, FileCategory> = {
+const EXTENSION_CATEGORIES: Record<string, FileCategory> = {
   // Documents
   'pdf': FileCategory.DOCUMENT,
   'doc': FileCategory.DOCUMENT,
@@ -106,14 +111,14 @@ export const EXTENSION_CATEGORIES: Record<string, FileCategory> = {
 };
 
 // Name patterns for content-based categorization
-export const NAME_PATTERNS: Array<{ pattern: RegExp; category: FileCategory }> = [
+const NAME_PATTERNS: Array<{ pattern: RegExp; category: FileCategory }> = [
   { pattern: /chat|conversation|message/i, category: FileCategory.CHAT_LOG },
   { pattern: /note|memo|todo/i, category: FileCategory.NOTE },
   { pattern: /research|paper|thesis|report/i, category: FileCategory.DOCUMENT },
   { pattern: /readme|changelog|license/i, category: FileCategory.DOCUMENT },
 ];
 
-export interface FileAnalysisResult {
+interface FileAnalysisResult {
   path: string;
   name: string;
   extension: string;
@@ -125,7 +130,7 @@ export interface FileAnalysisResult {
   isDirectory: boolean;
 }
 
-export interface AnalysisSummary {
+interface AnalysisSummary {
   totalFiles: number;
   totalDirectories: number;
   categories: Record<FileCategory, number>;
@@ -133,15 +138,10 @@ export interface AnalysisSummary {
   totalSizeFormatted: string;
 }
 
-export interface AnalysisOutput {
-  results: FileAnalysisResult[];
-  summary: AnalysisSummary;
-}
-
 /**
  * Format file size in human-readable format
  */
-export function formatFileSize(bytes: number): string {
+function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 Bytes';
   const k = 1024;
   const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
@@ -152,7 +152,7 @@ export function formatFileSize(bytes: number): string {
 /**
  * Determine file category based on extension and name patterns
  */
-export function determineCategory(fileName: string): FileCategory {
+function determineCategory(fileName: string): FileCategory {
   // Check name patterns first
   for (const { pattern, category } of NAME_PATTERNS) {
     if (pattern.test(fileName)) {
@@ -174,7 +174,7 @@ export function determineCategory(fileName: string): FileCategory {
 /**
  * Analyze a single file
  */
-export function analyzeFile(filePath: string): FileAnalysisResult {
+function analyzeFile(filePath: string): FileAnalysisResult {
   const stats = fs.statSync(filePath);
   const fileName = path.basename(filePath);
   const extension = path.extname(fileName).toLowerCase().replace('.', '');
@@ -196,7 +196,7 @@ export function analyzeFile(filePath: string): FileAnalysisResult {
 /**
  * Recursively analyze a directory
  */
-export function analyzeDirectory(dirPath: string, results: FileAnalysisResult[] = []): FileAnalysisResult[] {
+function analyzeDirectory(dirPath: string, results: FileAnalysisResult[] = []): FileAnalysisResult[] {
   const items = fs.readdirSync(dirPath);
   
   for (const item of items) {
@@ -226,8 +226,9 @@ export function analyzeDirectory(dirPath: string, results: FileAnalysisResult[] 
       } else {
         results.push(analyzeFile(itemPath));
       }
-    } catch {
-      // Skip files that can't be accessed
+    } catch (error) {
+      // Skip files that can't be accessed, but log the error for debugging
+      console.debug(`Could not access ${itemPath}:`, error);
     }
   }
   
@@ -237,7 +238,7 @@ export function analyzeDirectory(dirPath: string, results: FileAnalysisResult[] 
 /**
  * Generate analysis summary
  */
-export function generateSummary(results: FileAnalysisResult[]): AnalysisSummary {
+function generateSummary(results: FileAnalysisResult[]): AnalysisSummary {
   const categories: Record<FileCategory, number> = {
     [FileCategory.DOCUMENT]: 0,
     [FileCategory.CODE]: 0,
@@ -273,87 +274,132 @@ export function generateSummary(results: FileAnalysisResult[]): AnalysisSummary 
 }
 
 /**
- * Analyze a path (file or directory) and return the complete analysis output
+ * Print help message
  */
-export function analyzePath(targetPath: string, recursive: boolean = true): AnalysisOutput {
+function printHelp(): void {
+  console.log(`
+📊 Pinksync File Analyzer
+========================
+
+A command-line tool for analyzing and categorizing files.
+
+Usage:
+  npx tsx tools/file-analyzer.ts <file-or-directory> [options]
+
+Options:
+  --json       Output results in JSON format
+  --summary    Show only summary, not individual files
+  --help       Show this help message
+
+Examples:
+  npx tsx tools/file-analyzer.ts ./src
+  npx tsx tools/file-analyzer.ts ./document.pdf
+  npx tsx tools/file-analyzer.ts ./project --json
+  npx tsx tools/file-analyzer.ts ./src --summary
+
+Categories:
+  ${VISUAL_INDICATORS[FileCategory.DOCUMENT]} Document  - PDFs, Word docs, text files
+  ${VISUAL_INDICATORS[FileCategory.CODE]} Code      - Source code files
+  ${VISUAL_INDICATORS[FileCategory.IMAGE]} Image     - Pictures and graphics
+  ${VISUAL_INDICATORS[FileCategory.VIDEO]} Video     - Video files
+  ${VISUAL_INDICATORS[FileCategory.AUDIO]} Audio     - Music and audio files
+  ${VISUAL_INDICATORS[FileCategory.NOTE]} Note      - Notes and memos
+  ${VISUAL_INDICATORS[FileCategory.CHAT_LOG]} Chat Log  - Conversation logs
+  ${VISUAL_INDICATORS[FileCategory.OTHER]} Other     - Other file types
+
+Accessibility:
+  This tool uses visual indicators (emoji) instead of color
+  coding to make output accessible for all users.
+`);
+}
+
+/**
+ * Print results in table format
+ */
+function printResults(results: FileAnalysisResult[], showSummaryOnly: boolean): void {
+  if (!showSummaryOnly) {
+    console.log('\n📋 File Analysis Results');
+    console.log('='.repeat(70));
+    
+    for (const result of results) {
+      if (result.isDirectory) {
+        console.log(`📁 ${result.name}/`);
+      } else {
+        console.log(`${result.indicator} ${result.name}`);
+        console.log(`   Category: ${result.category} | Size: ${result.sizeFormatted}`);
+      }
+    }
+  }
+  
+  const summary = generateSummary(results);
+  
+  console.log('\n📊 Summary');
+  console.log('='.repeat(40));
+  console.log(`Total Files: ${summary.totalFiles}`);
+  console.log(`Total Directories: ${summary.totalDirectories}`);
+  console.log(`Total Size: ${summary.totalSizeFormatted}`);
+  console.log('\nBy Category:');
+  
+  for (const [category, count] of Object.entries(summary.categories)) {
+    if (count > 0) {
+      const indicator = VISUAL_INDICATORS[category as FileCategory];
+      console.log(`  ${indicator} ${category}: ${count}`);
+    }
+  }
+}
+
+/**
+ * Main entry point
+ */
+function main(): void {
+  const args = process.argv.slice(2);
+  
+  if (args.length === 0 || args.includes('--help')) {
+    printHelp();
+    process.exit(0);
+  }
+  
+  const jsonOutput = args.includes('--json');
+  const summaryOnly = args.includes('--summary');
+  const targetPath = args.find(arg => !arg.startsWith('--'));
+  
+  if (!targetPath) {
+    console.error('❌ Error: No file or directory path provided');
+    process.exit(1);
+  }
+  
   const absolutePath = path.resolve(targetPath);
   
   if (!fs.existsSync(absolutePath)) {
-    throw new Error(`Path does not exist: ${absolutePath}`);
+    console.error(`❌ Error: Path does not exist: ${absolutePath}`);
+    process.exit(1);
   }
   
   const stats = fs.statSync(absolutePath);
   let results: FileAnalysisResult[];
   
   if (stats.isDirectory()) {
-    results = recursive ? analyzeDirectory(absolutePath) : analyzeDirectoryNonRecursive(absolutePath);
+    if (!jsonOutput) {
+      console.log(`\n🔍 Analyzing directory: ${absolutePath}`);
+    }
+    results = analyzeDirectory(absolutePath);
   } else {
+    if (!jsonOutput) {
+      console.log(`\n🔍 Analyzing file: ${absolutePath}`);
+    }
     results = [analyzeFile(absolutePath)];
   }
   
-  return {
-    results,
-    summary: generateSummary(results),
-  };
-}
-
-/**
- * Analyze a directory without recursion
- */
-function analyzeDirectoryNonRecursive(dirPath: string): FileAnalysisResult[] {
-  const results: FileAnalysisResult[] = [];
-  const items = fs.readdirSync(dirPath);
-  
-  for (const item of items) {
-    // Skip hidden files and common ignored directories (consistent with recursive version)
-    if (item.startsWith('.') || item === 'node_modules' || item === 'dist' || item === '__pycache__') {
-      continue;
-    }
-    
-    const itemPath = path.join(dirPath, item);
-    
-    try {
-      const stats = fs.statSync(itemPath);
-      
-      if (stats.isDirectory()) {
-        results.push({
-          path: itemPath,
-          name: item,
-          extension: '',
-          category: FileCategory.OTHER,
-          indicator: '📁',
-          size: 0,
-          sizeFormatted: '-',
-          lastModified: stats.mtime,
-          isDirectory: true,
-        });
-      } else {
-        results.push(analyzeFile(itemPath));
-      }
-    } catch {
-      // Skip files that can't be accessed
-    }
+  if (jsonOutput) {
+    const output = {
+      results,
+      summary: generateSummary(results),
+    };
+    console.log(JSON.stringify(output, null, 2));
+  } else {
+    printResults(results, summaryOnly);
+    console.log('\n✅ Analysis complete!');
   }
-  
-  return results;
 }
 
-/**
- * Get all supported file categories
- */
-export function getCategories(): Array<{ category: FileCategory; indicator: string }> {
-  return Object.values(FileCategory).map(category => ({
-    category,
-    indicator: VISUAL_INDICATORS[category],
-  }));
-}
-
-/**
- * Get all supported file extensions with their categories
- */
-export function getExtensionMappings(): Array<{ extension: string; category: FileCategory }> {
-  return Object.entries(EXTENSION_CATEGORIES).map(([extension, category]) => ({
-    extension,
-    category,
-  }));
-}
+main();
