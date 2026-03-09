@@ -3,12 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
-import { Cloud, Database, FileText, Folder, MessageSquare, LogIn, ArrowRight } from "lucide-react";
+import { Cloud, Database, FileText, Folder, MessageSquare, LogIn, ArrowRight, Calculator } from "lucide-react";
 
 export default function Dashboard() {
   const { user, isLoading, isAuthenticated, login } = useAuth();
 
   const modules = [
+    {
+      title: "PinkSync Estimator",
+      description: "Original cost estimation platform for AI inference, sync operations, and project delivery",
+      icon: <Calculator className="h-8 w-8 text-primary" />,
+      href: "/estimator",
+      status: "Active"
+    },
     {
       title: "Platform Sync",
       description: "Manage file synchronization across multiple platforms",
@@ -57,7 +64,7 @@ export default function Dashboard() {
           </div>
           
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {[1, 2, 3, 4, 5].map((i) => (
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <Card key={i} className="overflow-hidden">
                 <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
                   <Skeleton className="h-6 w-32" />

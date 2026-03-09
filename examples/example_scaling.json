@@ -1,0 +1,26 @@
+{
+  "users": [
+    {
+      "user_id": "user_001",
+      "storage_gb": 5.2,
+      "compute_hours": 0.5,
+      "bandwidth_gb": 10.0,
+      "api_calls": 1000,
+      "ai_tokens": 50000,
+      "cost": 1.50,
+      "tier": "basic",
+      "active_days": 28
+    },
+    {
+      "user_id": "user_002",
+      "storage_gb": 15.8,
+      "compute_hours": 2.3,
+      "bandwidth_gb": 45.0,
+      "api_calls": 5000,
+      "ai_tokens": 250000,
+      "cost": 15.00,
+      "tier": "professional",
+      "active_days": 30
+    }
+  ]
+}

@@ -9,6 +9,7 @@ import communicationRoutes from './api/communication-routes';
 import realEstateRoutes from './api/real-estate-routes';
 import insuranceRoutes from './api/insurance-routes';
 import syncRoutes from './api/sync-routes';
+import githubReposRoutes from './api/github-repos-routes';
 import fileAnalyzerRoutes from './api/file-analyzer-routes';
 
 // Set up WebSocket connections (for real-time communication)
@@ -67,6 +68,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/real-estate', realEstateRoutes);
   app.use('/api/insurance', insuranceRoutes);
   app.use('/api/sync', syncRoutes);
+  app.use('/api/github', githubReposRoutes);
   app.use('/api/file-analyzer', fileAnalyzerRoutes);
   
   // API health check
@@ -80,7 +82,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       signyapse: process.env.SIGNYAPSE_API_KEY !== undefined,
       openai: process.env.OPENAI_API_KEY !== undefined,
       huggingface: process.env.HUGGINGFACE_API_KEY !== undefined,
-      astraDb: process.env.ASTRA_DB_TOKEN !== undefined
+      database: process.env.DATABASE_URL !== undefined,
+      localPostgres: process.env.USE_LOCAL_POSTGRES === 'true'
     };
     
     res.json(secretsStatus);
