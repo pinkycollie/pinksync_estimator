@@ -10,7 +10,7 @@ const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
 
 /**
  * Code Enhancement Utilities for Platform Integration
- * Supports: Cursor AI, Replit, and Netlify
+ * Supports: VS Code, Replit, and Netlify
  */
 export class CodeEnhancement {
   /**
@@ -387,7 +387,7 @@ ${content.substring(0, 4000)}
    */
   public static async checkDeploymentReadiness(
     fileId: number,
-    platform: 'replit' | 'netlify' | 'vercel' | 'cursorai'
+    platform: 'replit' | 'netlify' | 'vercel' | 'vscode'
   ): Promise<{
     isReady: boolean;
     platform: string;
@@ -436,9 +436,9 @@ ${content.substring(0, 4000)}
         case 'vercel':
           this.checkForVercelConfig(dirPath, checks, missingFiles, configIssues);
           break;
-        case 'cursorai':
-          // Cursor AI doesn't need deployment configs, but check for prompt templates
-          this.checkForCursorAIConfig(dirPath, checks, missingFiles, configIssues);
+        case 'vscode':
+          // VS Code is an editor, check for .vscode configuration
+          this.checkForVSCodeConfig(dirPath, checks, missingFiles, configIssues);
           break;
       }
       
@@ -1204,56 +1204,57 @@ Format as a numbered list:`;
     }
   }
 
-  private static checkForCursorAIConfig(dirPath: string, checks: any[], missingFiles: string[], configIssues: string[]) {
-    // Cursor AI doesn't have specific config files, but check for prompt templates
-    const promptsDir = path.join(dirPath, 'prompts');
-    if (fs.existsSync(promptsDir) && fs.statSync(promptsDir).isDirectory()) {
-      const promptFiles = fs.readdirSync(promptsDir).filter(f => f.endsWith('.md') || f.endsWith('.txt'));
-      
+  private static checkForVSCodeConfig(dirPath: string, checks: any[], missingFiles: string[], configIssues: string[]) {
+    // Check for .vscode configuration directory
+    const vscodeDirPath = path.join(dirPath, '.vscode');
+    
+    if (fs.existsSync(vscodeDirPath) && fs.statSync(vscodeDirPath).isDirectory()) {
       checks.push({
-        name: 'Cursor AI prompts directory exists',
+        name: 'VS Code configuration directory exists',
         passed: true,
-        message: 'Prompts directory found',
+        message: '.vscode directory found',
         severity: 'medium'
       });
       
+      // Check for settings.json
+      const settingsPath = path.join(vscodeDirPath, 'settings.json');
+      if (fs.existsSync(settingsPath)) {
+        try {
+          const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+          const hasAccessibilitySettings = !!settings['editor.accessibilitySupport'] || 
+                                         !!settings['accessibility.signals.lineHasError'];
+          
+          checks.push({
+            name: 'VS Code accessibility settings configured',
+            passed: hasAccessibilitySettings,
+            message: hasAccessibilitySettings 
+              ? 'Accessibility settings found in VS Code configuration'
+              : 'Consider adding accessibility settings to VS Code configuration',
+            severity: 'low'
+          });
+        } catch (error) {
+          console.error('Error parsing VS Code settings:', error);
+        }
+      }
+      
+      // Check for extensions.json
+      const extensionsPath = path.join(vscodeDirPath, 'extensions.json');
       checks.push({
-        name: 'Cursor AI prompt templates exist',
-        passed: promptFiles.length > 0,
-        message: promptFiles.length > 0 
-          ? `${promptFiles.length} prompt templates found`
-          : 'No prompt templates found in prompts directory',
+        name: 'VS Code recommended extensions configured',
+        passed: fs.existsSync(extensionsPath),
+        message: fs.existsSync(extensionsPath)
+          ? 'Recommended extensions file found'
+          : 'Consider adding extensions.json with recommended extensions',
         severity: 'low'
       });
     } else {
       checks.push({
-        name: 'Cursor AI prompts directory exists',
+        name: 'VS Code configuration directory exists',
         passed: false,
-        message: 'No prompts directory found (recommended for Cursor AI projects)',
+        message: 'No .vscode directory found (recommended for VS Code projects)',
         severity: 'low'
       });
-    }
-    
-    // Check for Cursor AI extension settings
-    const vscodeDirPath = path.join(dirPath, '.vscode');
-    const settingsPath = path.join(vscodeDirPath, 'settings.json');
-    if (fs.existsSync(settingsPath)) {
-      try {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-        const hasCursorSettings = !!settings['cursor.promptDirectory'] || 
-                                 Object.keys(settings).some(key => key.startsWith('cursor.'));
-        
-        checks.push({
-          name: 'Cursor AI settings exist',
-          passed: hasCursorSettings,
-          message: hasCursorSettings 
-            ? 'Cursor AI settings found in VS Code settings'
-            : 'No Cursor AI settings found in VS Code settings',
-          severity: 'low'
-        });
-      } catch (error) {
-        console.error('Error parsing VS Code settings:', error);
-      }
+      missingFiles.push('.vscode/settings.json');
     }
   }
 
