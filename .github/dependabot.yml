@@ -1,0 +1,96 @@
+# Dependabot configuration file
+# See https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates: auto-update
+  # Enable version updates for npm
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "npm"
+    groups:
+      # UI Components - grouped for consistent updates
+      radix-ui:
+        patterns:
+          - "@radix-ui/*"
+      # React ecosystem - core packages that should update together
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      # AI/ML packages - grouped for compatibility
+      ai-packages:
+        patterns:
+          - "@anthropic-ai/*"
+          - "@huggingface/*"
+          - "openai"
+      # Database packages - grouped for compatibility
+      database:
+        patterns:
+          - "@datastax/*"
+          - "@neondatabase/*"
+          - "drizzle-*"
+      # TypeScript and build tools
+      typescript-tooling:
+        patterns:
+          - "typescript"
+          - "@types/node"
+          - "@types/express*"
+          - "tsx"
+          - "esbuild"
+      # Development dependencies - lower priority
+      dev-minor:
+        patterns:
+          - "@vitejs/*"
+          - "vite"
+          - "tailwindcss*"
+          - "autoprefixer"
+          - "postcss"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Enable version updates for pip (Python)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "python"
+    commit-message:
+      prefix: "pip"
+    groups:
+      # Flask and web packages
+      flask:
+        patterns:
+          - "flask*"
+          - "gunicorn"
+      # Testing packages
+      testing:
+        patterns:
+          - "pytest*"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"
+    commit-message:
+      prefix: "actions"
