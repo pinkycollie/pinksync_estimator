@@ -16,15 +16,48 @@ updates: auto-update
     commit-message:
       prefix: "npm"
     groups:
+      # UI Components - grouped for consistent updates
       radix-ui:
         patterns:
           - "@radix-ui/*"
+      # React ecosystem - core packages that should update together
       react:
         patterns:
           - "react"
           - "react-dom"
           - "@types/react"
           - "@types/react-dom"
+      # AI/ML packages - grouped for compatibility
+      ai-packages:
+        patterns:
+          - "@anthropic-ai/*"
+          - "@huggingface/*"
+          - "openai"
+      # Database packages - grouped for compatibility
+      database:
+        patterns:
+          - "@datastax/*"
+          - "@neondatabase/*"
+          - "drizzle-*"
+      # TypeScript and build tools
+      typescript-tooling:
+        patterns:
+          - "typescript"
+          - "@types/node"
+          - "@types/express*"
+          - "tsx"
+          - "esbuild"
+      # Development dependencies - lower priority
+      dev-minor:
+        patterns:
+          - "@vitejs/*"
+          - "vite"
+          - "tailwindcss*"
+          - "autoprefixer"
+          - "postcss"
+        update-types:
+          - "minor"
+          - "patch"
 
   # Enable version updates for pip (Python)
   - package-ecosystem: "pip"
@@ -38,6 +71,16 @@ updates: auto-update
       - "python"
     commit-message:
       prefix: "pip"
+    groups:
+      # Flask and web packages
+      flask:
+        patterns:
+          - "flask*"
+          - "gunicorn"
+      # Testing packages
+      testing:
+        patterns:
+          - "pytest*"
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
