@@ -1,4 +1,5 @@
 {
+  "_comment": "This is a TEMPLATE configuration for Vercel deployment. Review and modify according to your client's deployment needs. You may also delete this file if using a different deployment platform.",
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "client/dist",
