@@ -66,10 +66,10 @@ This guide will help you set up the AI OS Platform on your Windows machine using
 1. In your project folder, create a `.env` file with the following content:
    ```
    # Database Connection
-   DATABASE_URL=postgresql://postgres:postgres@db:5432/aiostool
+   DATABASE_URL=postgresql://postgres:postgres@db:5432/pinksync_db
    PGHOST=db
    PGPORT=5432
-   PGDATABASE=aiostool
+   PGDATABASE=pinksync_db
    PGUSER=postgres
    PGPASSWORD=postgres
    

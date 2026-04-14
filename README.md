@@ -59,6 +59,8 @@ from universal_estimator import UniversalPinkSyncEstimator
 
 ## Getting Started
 
+> **Note**: Before deploying, review [DEPLOYMENT.md](DEPLOYMENT.md) for deployment configuration options.
+
 ### Prerequisites
 
 - Node.js 20+
@@ -84,6 +86,16 @@ from universal_estimator import UniversalPinkSyncEstimator
    ```bash
    npm run dev
    ```
+
+The server will start at **http://localhost:5000**.
+
+### Moving from Replit to Local
+
+If you're migrating from Replit, see [LOCAL_SETUP.md](LOCAL_SETUP.md) for detailed instructions on:
+- Exporting your project from Replit
+- Setting up PostgreSQL locally
+- Configuring environment variables
+- Running on port 5000 (same as Replit)
 
 ## Project Structure
 
@@ -119,8 +131,11 @@ This project is licensed under the MIT License - see the package.json file for d
 
 ## Documentation
 
+- [Deployment Guide](DEPLOYMENT.md) - **Start here for deployment configuration**
 - [API Specification](API_SPECIFICATION.md)
 - [Database Schema](DATABASE_SCHEMA.md)
 - [Architecture Overview](ARCHITECTURE.md)
 - [Feature Specification](FEATURE_SPECIFICATION.md)
 - [Implementation Roadmap](IMPLEMENTATION_ROADMAP.md)
+- [Local Setup Guide](LOCAL_SETUP.md) - Moving from Replit to local development
+- [Replit Agent Instructions](REPLIT_AGENT.md) - Context for Replit Agent
