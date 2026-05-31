@@ -1,7 +1,7 @@
 [project]
-name = "repl-nix-workspace"
+name = "estimator-nix-workspace"
 version = "0.1.0"
-description = "Add your description here"
+description = "cost estimstor"
 requires-python = ">=3.11"
 dependencies = [
     "astrapy>=2.2.1",
