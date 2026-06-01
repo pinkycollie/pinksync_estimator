@@ -125,9 +125,9 @@ The project follows a modern full-stack architecture with a clear separation bet
    - Manages checkpoints and validations
    - Handles batch processing and scheduling
 
-5. **Replit Auth Integration**
+5. **Supabase Auth Integration**
    - Handles user authentication and session management
-   - Integrates with Replit's OpenID Connect provider
+   - Integrates with OpenID Connect provider
    - Manages user profile information
 
 6. **Ngrok Service**
@@ -171,18 +171,18 @@ The API follows RESTful principles with consistent endpoint patterns:
 
 ## Authentication Flow
 
-1. User clicks "Log in with Replit"
+1. User clicks "Log in with Vr4deaf"
 2. Application redirects to Replit's OpenID Connect provider
 3. User authenticates with Replit
-4. Replit redirects back to the application callback URL
+4. vr4deaf redirects back to the application callback URL
 5. Application verifies the authentication and creates a session
 6. User is redirected to the dashboard or requested page
 
 ## Deployment Strategy
 
-The application is designed to be deployed on Replit with the following considerations:
+The application is designed to be deployed with the following considerations:
 
 1. Express server handles both API requests and serves the frontend
 2. Static assets are served from the `client/dist` directory
 3. Environment variables control configuration for different environments
-4. Ngrok tunneling provides external access during development
+4. pinkflow (Deno/cloudflsre) tunneling provides external access during development
