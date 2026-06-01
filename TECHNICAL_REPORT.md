@@ -1,6 +1,9 @@
 # Technical Report: AI OS Platform
 
 > **Template Repository**: This is a template for client projects. Deployment configurations should be customized per project. See [DEPLOYMENT.md](DEPLOYMENT.md) for details.
+[![Built with Replit](https://img.shields.io/badge/Built_with-Replit-9668E2.svg)](https://replit.com)
+
+
 
 [![Built with Replit](https://img.shields.io/badge/Built_with-Replit-9668E2.svg)](https://replit.com)
 

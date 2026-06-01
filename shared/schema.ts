@@ -304,84 +304,6 @@ export const insertWorkflowExecutionSchema = createInsertSchema(workflowExecutio
   id: true,
 });
 
-// Document Categories enum
-export enum DocumentCategory {
-  PERSONAL = "personal",
-  LEGAL = "legal",
-  TAX = "tax",
-  INSURANCE = "insurance",
-  OTHER = "other",
-}
-
-// Document Status enum
-export enum DocumentStatus {
-  DRAFT = "draft",
-  ACTIVE = "active",
-  ARCHIVED = "archived",
-  EXPIRED = "expired",
-  PENDING_REVIEW = "pending_review",
-}
-
-// Document schema
-export const documents = pgTable("documents", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  title: text("title").notNull(),
-  description: text("description"),
-  category: text("category").notNull(), // From DocumentCategory enum
-  status: text("status").notNull().default('active'), // From DocumentStatus enum
-  fileId: integer("file_id"), // Optional reference to files table
-  tags: text("tags"), // Comma-separated tags
-  expirationDate: timestamp("expiration_date"),
-  reminderDate: timestamp("reminder_date"),
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  metadata: jsonb("metadata"), // Additional document metadata
-  isConfidential: boolean("is_confidential").default(false),
-  contentVector: jsonb("content_vector"), // For semantic search
-  version: integer("version").notNull().default(1), // Document version
-});
-
-export const insertDocumentSchema = createInsertSchema(documents).omit({
-  id: true,
-  contentVector: true,
-});
-
-// Document Version history
-export const documentVersions = pgTable("document_versions", {
-  id: serial("id").primaryKey(),
-  documentId: integer("document_id").notNull(),
-  version: integer("version").notNull(),
-  title: text("title").notNull(),
-  description: text("description"),
-  fileId: integer("file_id"), // Optional reference to files table
-  metadata: jsonb("metadata"), // Additional document metadata
-  changedBy: integer("changed_by").notNull(), // User ID who made the change
-  changeLog: text("change_log"), // Description of changes
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-});
-
-export const insertDocumentVersionSchema = createInsertSchema(documentVersions).omit({
-  id: true,
-});
-
-// Document Metrics
-export const documentMetrics = pgTable("document_metrics", {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  categoryName: text("category_name").notNull(), // personal, legal, tax, insurance
-  totalCount: integer("total_count").notNull().default(0),
-  activeCount: integer("active_count").notNull().default(0),
-  expiredCount: integer("expired_count").notNull().default(0),
-  expiringCount: integer("expiring_count").notNull().default(0), // Expiring within 30 days
-  avgVersions: integer("avg_versions").notNull().default(1),
-  lastUpdated: timestamp("last_updated").notNull().defaultNow(),
-});
-
-export const insertDocumentMetricsSchema = createInsertSchema(documentMetrics).omit({
-  id: true,
-});
-
 // Export types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -412,29 +334,6 @@ export type InsertProjectPlan = z.infer<typeof insertProjectPlanSchema>;
 
 export type ProjectMilestone = typeof projectMilestones.$inferSelect;
 export type InsertProjectMilestone = z.infer<typeof insertProjectMilestoneSchema>;
-
-// Projects
-export const projects = pgTable('projects', {
-  id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  status: text("status").notNull().default('planning'), // planning, in_progress, completed, cancelled
-  visibility: text("visibility").notNull().default('private'), // private, team, public
-  tags: text("tags"), // Comma-separated tags
-  createdAt: timestamp("created_at").notNull().defaultNow(),
-  updatedAt: timestamp("updated_at").notNull().defaultNow(),
-  metadata: jsonb("metadata"), // Project metadata including platform integrations
-  gitRepository: text("git_repository"), // Git repository URL if applicable
-  deploymentId: integer("deployment_id"), // Latest deployment ID
-});
-
-export const insertProjectSchema = createInsertSchema(projects).omit({
-  id: true,
-});
-
-export type Project = typeof projects.$inferSelect;
-export type InsertProject = z.infer<typeof insertProjectSchema>;
 
 export type CodeSource = typeof codeSources.$inferSelect;
 export type InsertCodeSource = z.infer<typeof insertCodeSourceSchema>;
@@ -548,27 +447,6 @@ export type InsertAiHubProject = z.infer<typeof insertAiHubProjectSchema>;
 
 export type ProjectDeployment = typeof projectDeployments.$inferSelect;
 export type InsertProjectDeployment = z.infer<typeof insertProjectDeploymentSchema>;
-
-// Deployment History for tracking all deployments across multiple platforms
-export const deploymentHistories = pgTable('deployment_histories', {
-  id: serial("id").primaryKey(),
-  projectId: integer("project_id").notNull(),
-  environment: text("environment").notNull(), // development, staging, production
-  status: text("status").notNull(), // success, failure, in_progress
-  deployedAt: timestamp("deployed_at").notNull().defaultNow(),
-  userId: integer("user_id").notNull(), // Who triggered the deployment
-  metadata: jsonb("metadata"), // Additional metadata including platform-specific details
-  logs: jsonb("logs"), // Deployment logs
-  visualFeedback: jsonb("visual_feedback"), // Visual feedback for accessibility
-  accessibilityFeatures: jsonb("accessibility_features"), // Accessibility features enabled for this deployment
-});
-
-export const insertDeploymentHistorySchema = createInsertSchema(deploymentHistories).omit({
-  id: true,
-});
-
-export type DeploymentHistory = typeof deploymentHistories.$inferSelect;
-export type InsertDeploymentHistory = z.infer<typeof insertDeploymentHistorySchema>;
 
 // File category enum for reference
 export enum FileCategory {
